@@ -352,6 +352,23 @@ void UniverseObjects::CheckReferences()
 	for(const auto &it : persons)
 		if(!it.second.IsValid())
 			Warn("person", it.first);
+	// Facilities can only produce and use commodities that are defined, either
+	// as normal trade goods or as special commodities (which cannot be bought).
+	set<string> commodityNames;
+	for(const Trade::Commodity &commodity : trade.Commodities())
+		commodityNames.insert(commodity.name);
+	for(const Trade::Commodity &commodity : trade.SpecialCommodities())
+		commodityNames.insert(commodity.name);
+	for(const auto &it : facilities)
+	{
+		if(!it.second.IsDefined())
+			continue;
+		for(const Facility::Amounts *amounts : {&it.second.Inputs(), &it.second.Outputs()})
+			for(const auto &amount : *amounts)
+				if(!commodityNames.contains(amount.first))
+					Logger::Log("Facility \"" + it.first + "\" uses unknown commodity \"" + amount.first + "\".",
+						Logger::Level::WARNING);
+	}
 }
 
 
@@ -434,6 +451,13 @@ void UniverseObjects::LoadFile(const filesystem::path &path, const PlayerInfo &p
 			if(overwrite)
 				*event = GameEvent();
 			event->Load(node, playerConditions);
+		}
+		else if(key == "facility" && hasValue)
+		{
+			Facility *facility = facilities.Get(node.Token(1));
+			if(overwrite)
+				*facility = Facility();
+			facility->Load(node);
 		}
 		else if(key == "fleet" && hasValue)
 		{

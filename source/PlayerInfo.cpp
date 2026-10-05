@@ -24,6 +24,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "DialogPanel.h"
 #include "DistanceMap.h"
 #include "Endpoint.h"
+#include "Facility.h"
 #include "Files.h"
 #include "Fleet.h"
 #include "text/Format.h"
@@ -67,6 +68,62 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include <stdexcept>
 
 using namespace std;
+
+namespace {
+	// Connects the player's industry to the markets and the hyperspace map.
+	class IndustryWorld : public Industry::World {
+	public:
+		virtual int Price(const string &planetName, const string &commodity) const override
+		{
+			const System *system = MarketSystem(planetName);
+			return system ? max(0, system->Trade(commodity)) : 0;
+		}
+
+		virtual void Trade(const string &planetName, const string &commodity, int tons) override
+		{
+			// Buying and selling move the local price, just like trading by hand.
+			const System *system = MarketSystem(planetName);
+			if(system)
+				GameData::AddPurchase(*system, commodity, tons);
+		}
+
+		virtual int Jumps(const string &from, const string &to) const override
+		{
+			const Planet *fromPlanet = GameData::Planets().Find(from);
+			const Planet *toPlanet = GameData::Planets().Find(to);
+			const System *start = fromPlanet ? fromPlanet->GetSystem() : nullptr;
+			const System *goal = toPlanet ? toPlanet->GetSystem() : nullptr;
+			if(!start || !goal)
+				return -1;
+			// Breadth-first search along hyperspace links.
+			map<const System *, int> distance = {{start, 0}};
+			list<const System *> queue = {start};
+			while(!queue.empty())
+			{
+				const System *system = queue.front();
+				queue.pop_front();
+				if(system == goal)
+					return distance[system];
+				for(const System *link : system->Links())
+					if(distance.emplace(link, distance[system] + 1).second)
+						queue.push_back(link);
+			}
+			return -1;
+		}
+
+
+	private:
+		// The system whose market serves the given planet, if it has one.
+		static const System *MarketSystem(const string &planetName)
+		{
+			const Planet *planet = GameData::Planets().Find(planetName);
+			if(!planet || !planet->IsInhabited() || !planet->GetPort().HasService(Port::ServicesType::Trading))
+				return nullptr;
+			const System *system = planet->GetSystem();
+			return (system && system->HasTrade()) ? system : nullptr;
+		}
+	};
+}
 
 namespace {
 	// Move the flagship to the start of your list of ships. It does not make sense
@@ -435,6 +492,8 @@ void PlayerInfo::Load(const filesystem::path &path, const shared_ptr<PilotProfil
 			accounts.Load(child, true);
 		else if(key == "cargo")
 			cargo.Load(child);
+		else if(key == "industry")
+			industry.Load(child, GameData::Facilities());
 		else if(key == "basis")
 		{
 			for(const DataNode &grand : child)
@@ -945,6 +1004,7 @@ void PlayerInfo::AdvanceDate(int amount)
 			if(!mission.IsFailed())
 				mission.Do(Mission::DAILY, *this);
 		}
+		AdvanceIndustry();
 		DoAccounting();
 	}
 	// Reset the reload counters for all your ships.
@@ -956,6 +1016,150 @@ void PlayerInfo::AdvanceDate(int amount)
 	// just reducing the cached values by 1 because the player may have
 	// explored new systems that change the DistanceMap calculations.
 	CacheMissionInformation(true);
+}
+
+
+
+// Run a day of production for the player's facilities, paying their upkeep
+// and selling the output of any set to auto-sell on their local markets.
+void PlayerInfo::AdvanceIndustry()
+{
+	if(industry.Holdings().empty())
+		return;
+
+	IndustryWorld world;
+	const Industry::DayReport report = industry.AdvanceDay(accounts.Credits(), &world);
+	accounts.AddCredits(report.Net());
+
+	if(report.upkeep || report.sales || report.purchases || report.freight)
+	{
+		vector<string> parts;
+		if(report.upkeep)
+			parts.push_back(Format::CreditString(report.upkeep) + " in upkeep");
+		if(report.freight)
+			parts.push_back(Format::CreditString(report.freight) + " for freight");
+		if(report.purchases)
+			parts.push_back(Format::CreditString(report.purchases) + " for goods");
+		if(report.tax)
+			parts.push_back(Format::CreditString(report.tax) + " in tax");
+		string message = "Industry:";
+		if(!parts.empty())
+		{
+			message += " paid ";
+			for(size_t i = 0; i < parts.size(); ++i)
+				message += (i ? (i + 1 == parts.size() ? " and " : ", ") : "") + parts[i];
+		}
+		if(report.sales)
+			message += string(parts.empty() ? "" : ";") + " earned " + Format::CreditString(report.sales) + " from sales";
+		Messages::Add({message + ".", GameData::MessageCategories().Get("daily")});
+	}
+
+	// Now and then, a facility sends home a short report about life on its planet.
+	static const uint32_t REPORT_ODDS = 20;
+	for(Industry::Holding &holding : industry.Holdings())
+	{
+		const vector<string> &flavor = holding.type->Flavor();
+		if(flavor.empty() || Random::Int(REPORT_ODDS))
+			continue;
+		const Planet *planet = GameData::Planets().Find(holding.planet);
+		const string planetName = planet ? planet->DisplayName() : holding.planet;
+		const string text = Format::Replace(flavor[Random::Int(flavor.size())], {{"<planet>", planetName}});
+		holding.AddReport(date.ToString(), text);
+		Messages::Add({holding.type->TrueName() + " on " + planetName + ": " + text,
+			GameData::MessageCategories().Get("low")});
+	}
+}
+
+
+
+bool PlayerInfo::FoundStation(const Facility &type, const string &name)
+{
+	if(!system || !IsValidStationName(name))
+		return false;
+
+	// Put the station in its own orbit, outside everything else in the system.
+	double distance = 0.;
+	for(const StellarObject &object : system->Objects())
+		if(object.Parent() < 0)
+			distance = max(distance, object.Distance());
+	distance += 400.;
+
+	string description = name + " is a station you founded in the " + system->DisplayName()
+		+ " system. It is small, cold, and smells of fresh sealant, and there is room for a great deal more.";
+	if(conditions.Get("expanded: varga charter") > 0)
+		description += " Its founding papers were filed under an orbital charter drawn up six hundred years ago"
+			" by Varga Deepworks, which caused the registry clerk on duty a great deal of confusion.";
+	const string spaceport = "The docking ring has six berths, a cargo office, and a vending machine that only"
+		" takes coins nobody has minted in a century. Your crew has already started calling the corridor"
+		" outside the cargo office \"the high street.\"";
+
+	ostringstream text;
+	text << "planet " << DataWriter::Quote(name) << '\n'
+		<< "\tattributes station \"player station\"\n"
+		<< "\tlandscape land/station1\n"
+		<< "\tgovernment \"Expanded Holdings\"\n"
+		<< "\tdescription `" << description << "`\n"
+		<< "\tspaceport `" << spaceport << "`\n"
+		<< "\tsecurity 0\n"
+		<< "system " << DataWriter::Quote(system->TrueName()) << '\n'
+		<< "\tadd object " << DataWriter::Quote(name) << '\n'
+		<< "\t\tsprite planet/station-depot-a0\n"
+		<< "\t\tdistance " << distance << '\n'
+		<< "\t\tperiod " << distance * .8 << '\n';
+	istringstream in(text.str());
+	DataFile file(in);
+	list<DataNode> changes(file.begin(), file.end());
+	dataChanges.insert(dataChanges.end(), changes.begin(), changes.end());
+	AddChanges(changes);
+
+	industry.Build(type, name);
+	return true;
+}
+
+
+
+bool PlayerInfo::IsValidStationName(const string &name)
+{
+	if(name.empty() || name.size() > 32 || name.front() == ' ' || name.back() == ' ')
+		return false;
+	for(char c : name)
+		if(c == '"' || c == '`' || c == '\\' || static_cast<unsigned char>(c) < ' ')
+			return false;
+	// The name must not already belong to a planet or a system.
+	const Planet *planet = GameData::Planets().Find(name);
+	const System *namedSystem = GameData::Systems().Find(name);
+	return !(planet && planet->IsValid()) && !(namedSystem && namedSystem->IsValid());
+}
+
+
+
+// Count the tons of a commodity in the player's cargo: the pooled cargo if
+// landed, plus the cargo holds of the ships in the player's system.
+int PlayerInfo::CommodityCount(const string &commodity) const
+{
+	int count = cargo.Get(commodity);
+	for(const shared_ptr<Ship> &ship : ships)
+		if(!ship->IsParked() && !ship->IsDisabled() && ship->GetActualSystem() == system)
+			count += ship->Cargo().Get(commodity);
+	return count;
+}
+
+
+
+// Remove up to the given tons of a commodity from the player's cargo, along
+// with its cost basis. Returns the number of tons removed.
+int PlayerInfo::RemoveCommodity(const string &commodity, int tons)
+{
+	tons = min(tons, CommodityCount(commodity));
+	if(tons <= 0)
+		return 0;
+	AdjustBasis(commodity, -GetBasis(commodity, tons));
+
+	int remaining = tons - cargo.Remove(commodity, tons);
+	for(const shared_ptr<Ship> &ship : ships)
+		if(remaining > 0 && !ship->IsParked() && !ship->IsDisabled() && ship->GetActualSystem() == system)
+			remaining -= ship->Cargo().Remove(commodity, remaining);
+	return tons - remaining;
 }
 
 
@@ -1090,6 +1294,20 @@ const Account &PlayerInfo::Accounts() const
 Account &PlayerInfo::Accounts()
 {
 	return accounts;
+}
+
+
+
+const Industry &PlayerInfo::GetIndustry() const
+{
+	return industry;
+}
+
+
+
+Industry &PlayerInfo::GetIndustry()
+{
+	return industry;
 }
 
 
@@ -4008,6 +4226,29 @@ void PlayerInfo::RegisterDerivedConditions()
 		return min(limit, max(-limit, accounts.NetWorth())); });
 	conditions["credits"].ProvideNamed([this](const ConditionEntry &ce) {
 		return min(limit, accounts.Credits()); });
+	conditions["facilities owned"].ProvideNamed([this](const ConditionEntry &ce) -> int64_t {
+		return industry.Holdings().size(); });
+	// The number of facilities the player owns on uninhabited worlds.
+	conditions["outposts owned"].ProvideNamed([this](const ConditionEntry &ce) -> int64_t {
+		int64_t retVal = 0;
+		for(const Industry::Holding &holding : industry.Holdings())
+		{
+			const Planet *planet = GameData::Planets().Find(holding.planet);
+			if(planet && !planet->IsInhabited())
+				++retVal;
+		}
+		return retVal; });
+	// The number of units of the given facility type the player owns, on all planets.
+	conditions["facility: "].ProvidePrefixed([this](const ConditionEntry &ce) -> int64_t {
+		int64_t retVal = 0;
+		const string name = ce.NameWithoutPrefix();
+		for(const Industry::Holding &holding : industry.Holdings())
+			if(holding.type->TrueName() == name)
+				retVal += holding.count;
+		return retVal; });
+	// Tons of the given commodity in the player's cargo (see CommodityCount).
+	conditions["commodity: "].ProvidePrefixed([this](const ConditionEntry &ce) -> int64_t {
+		return CommodityCount(ce.NameWithoutPrefix()); });
 	conditions["unpaid mortgages"].ProvideNamed([this](const ConditionEntry &ce) {
 		return min(limit, accounts.TotalDebt("Mortgage")); });
 	conditions["unpaid fines"].ProvideNamed([this](const ConditionEntry &ce) {
@@ -5144,6 +5385,7 @@ void PlayerInfo::Save(DataWriter &out) const
 	// Save accounting information, cargo, and cargo cost bases.
 	accounts.Save(out);
 	cargo.Save(out);
+	industry.Save(out);
 	if(!costBasis.empty())
 	{
 		out.Write("basis");

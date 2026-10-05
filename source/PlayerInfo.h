@@ -26,6 +26,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "EsUuid.h"
 #include "ExclusiveItem.h"
 #include "GameEvent.h"
+#include "Industry.h"
 #include "Minable.h"
 #include "Mission.h"
 #include "SystemEntry.h"
@@ -41,6 +42,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include <vector>
 
 class DistanceMap;
+class Facility;
 class Outfit;
 class PilotProfile;
 class Planet;
@@ -161,6 +163,9 @@ public:
 	// Access the player's accounting information.
 	const Account &Accounts() const;
 	Account &Accounts();
+	// Access the industrial facilities the player owns.
+	const Industry &GetIndustry() const;
+	Industry &GetIndustry();
 	// Calculate the daily salaries for crew, not counting crew on "parked" ships.
 	int64_t Salaries() const;
 	// Calculate the daily maintenance cost and generated income for all ships and in cargo outfits.
@@ -209,6 +214,15 @@ public:
 	// Get cargo information.
 	CargoHold &Cargo();
 	const CargoHold &Cargo() const;
+	// Found a new space station of the given type, with the given name, in the
+	// player's current system. The station becomes a real planet, recorded in
+	// the saved game's changes. Returns false if the name cannot be used.
+	bool FoundStation(const Facility &type, const std::string &name);
+	static bool IsValidStationName(const std::string &name);
+	// Count or remove tons of a commodity in the pooled cargo and the cargo
+	// holds of the ships in the player's system.
+	int CommodityCount(const std::string &commodity) const;
+	int RemoveCommodity(const std::string &commodity, int tons);
 	// Get items stored on the player's current planet.
 	CargoHold &Storage();
 	// Get items stored on all planets (for map display).
@@ -472,6 +486,8 @@ private:
 	bool CanBeSaved() const;
 	// Handle the daily salaries and payments.
 	void DoAccounting();
+	// Run a day of production for the player's facilities.
+	void AdvanceIndustry();
 
 	bool HasClearance() const;
 
@@ -499,6 +515,7 @@ private:
 	double playTime = 0.;
 
 	Account accounts;
+	Industry industry;
 	// The licenses that the player owns.
 	std::set<std::string> licenses;
 

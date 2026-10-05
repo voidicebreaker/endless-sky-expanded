@@ -37,6 +37,7 @@ target_sources(EndlessSkyTests PRIVATE
 	unit/src/test_exclusiveItem.cpp
 	unit/src/test_firecommand.cpp
 	unit/src/test_formationPattern.cpp
+	unit/src/test_industry.cpp
 	unit/src/test_main.cpp
 	unit/src/test_orderedMap.cpp
 	unit/src/test_point.cpp
@@ -59,6 +60,7 @@ list(APPEND INTEGRATION_TESTS
 	integration/config/plugins/integration-tests/data/tests/tests_capture_override.txt
 	integration/config/plugins/integration-tests/data/tests/tests_common.txt
 	integration/config/plugins/integration-tests/data/tests/tests_conditional_choice.txt
+	integration/config/plugins/integration-tests/data/tests/tests_dev_menu.txt
 	integration/config/plugins/integration-tests/data/tests/tests_disown.txt
 	integration/config/plugins/integration-tests/data/tests/tests_flagship_attribute_autoconditions.txt
 	integration/config/plugins/integration-tests/data/tests/tests_flagship_model_condition.txt
@@ -66,6 +68,7 @@ list(APPEND INTEGRATION_TESTS
 	integration/config/plugins/integration-tests/data/tests/tests_framework.txt
 	integration/config/plugins/integration-tests/data/tests/tests_hyperjumps_to_autocondition.txt
 	integration/config/plugins/integration-tests/data/tests/tests_illegal_atrocity.txt
+	integration/config/plugins/integration-tests/data/tests/tests_industry.txt
 	integration/config/plugins/integration-tests/data/tests/tests_job_board_missions.txt
 	integration/config/plugins/integration-tests/data/tests/tests_landing.txt
 	integration/config/plugins/integration-tests/data/tests/tests_take_ships.txt
@@ -73,8 +76,10 @@ list(APPEND INTEGRATION_TESTS
 	integration/config/plugins/integration-tests/data/tests/tests_save_load.txt
 	integration/config/plugins/integration-tests/data/tests/tests_ship_sale.txt
 	integration/config/plugins/integration-tests/data/tests/tests_shipyard_outfitter_missions.txt
+	integration/config/plugins/integration-tests/data/tests/tests_stations.txt
 	integration/config/plugins/integration-tests/data/tests/tests_store_outfits_on_take_off.txt
 	integration/config/plugins/integration-tests/data/tests/tests_to_accept.txt
+	integration/config/plugins/integration-tests/data/tests/tests_varga.txt
 	integration/config/plugins/integration-tests/data/tests/tests_wormhole_navigation.txt
 	integration/config/plugins/integration-tests/data/tests/tests_installed_plugin.txt
 )
