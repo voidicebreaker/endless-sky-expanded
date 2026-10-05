@@ -72,7 +72,7 @@ PlanetPanel::PlanetPanel(PlayerInfo &player, function<void()> callback)
 	bank = make_shared<BankPanel>(player);
 	spaceport = make_shared<SpaceportPanel>(player);
 	hiring = make_shared<HiringPanel>(player);
-	industry = make_shared<IndustryPanel>(player, planet);
+	industry = make_shared<IndustryPanel>(player, &planet);
 
 	description = make_shared<TextArea>();
 	description->SetFont(FontSet::Get(Preferences::GetFontSize()));
@@ -145,6 +145,13 @@ void PlanetPanel::Step()
 			hasOutfitter = true;
 			outfitterStock.Add(shop->Stock());
 		}
+	}
+	// Building a fabrication bay adds an outfitter to the player's station while they are on it.
+	if(!hasOutfitter && planet.Attributes().contains("player station") && !planet.Outfitters().empty())
+	{
+		hasOutfitter = true;
+		for(const Shop<Outfit> *shop : planet.Outfitters())
+			outfitterStock.Add(shop->Stock());
 	}
 	// Load the thumbnails of all outfits and ships that the player could see while landed here
 	// if they haven't been loaded before or a mission action has just completed and we should

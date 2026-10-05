@@ -19,6 +19,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "Set.h"
 #include "Shop.h"
 
+#include "Blueprint.h"
 #include "CategoryList.h"
 #include "Color.h"
 #include "Confusion.h"
@@ -112,6 +113,7 @@ private:
 
 
 private:
+	Set<Blueprint> blueprints;
 	Set<Color> colors;
 	Set<Swizzle> swizzles;
 	Set<Confusion> confusions;

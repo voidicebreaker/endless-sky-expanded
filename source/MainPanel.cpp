@@ -25,6 +25,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "GameData.h"
 #include "Government.h"
 #include "HailPanel.h"
+#include "IndustryPanel.h"
 #include "shader/LineShader.h"
 #include "MapDetailPanel.h"
 #include "MessageLogPanel.h"
@@ -232,6 +233,14 @@ bool MainPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command, boo
 	// The playtesting developer menu is available in flight as well as on planets.
 	else if((key == '`' || key == SDLK_F12) && !command && isNewPress)
 		GetUI().Push(new DevPanel(player));
+	// Industry can be managed remotely from flight.
+	else if(key == 'o' && !command && isNewPress)
+	{
+		if(IndustryPanel::CanOpenRemotely(player))
+			GetUI().Push(new IndustryPanel(player, nullptr, true));
+		else
+			Messages::Add({"You don't own any facilities to manage yet.", GameData::MessageCategories().Get("normal")});
+	}
 	else
 		return false;
 

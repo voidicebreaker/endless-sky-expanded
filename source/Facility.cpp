@@ -31,6 +31,7 @@ void Facility::Load(const DataNode &node)
 	inputs.clear();
 	outputs.clear();
 	flavor.clear();
+	outfitters.clear();
 
 	for(const DataNode &child : node)
 	{
@@ -62,6 +63,10 @@ void Facility::Load(const DataNode &node)
 			warehouse = max(0, static_cast<int>(child.Value(1)));
 		else if(key == "station")
 			isStation = true;
+		else if(key == "fabricator")
+			isFabricator = true;
+		else if(key == "outfitter" && hasValue)
+			outfitters.push_back(child.Token(1));
 		else if(key == "uninhabited")
 			anyUninhabited = true;
 		else if(key == "requires" && hasValue)
@@ -113,6 +118,20 @@ int Facility::Warehouse() const
 bool Facility::IsStation() const
 {
 	return isStation;
+}
+
+
+
+bool Facility::IsFabricator() const
+{
+	return isFabricator;
+}
+
+
+
+const vector<string> &Facility::Outfitters() const
+{
+	return outfitters;
 }
 
 

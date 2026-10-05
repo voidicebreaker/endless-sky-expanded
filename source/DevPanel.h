@@ -48,6 +48,9 @@ private:
 	void AdvanceDays(int days);
 	void AddCredits(int64_t amount);
 	void AddCustomCredits(int amount);
+	// Fill the warehouse where the player is landed with special commodities.
+	void StockWarehouse();
+	void UnlockStory();
 	void Run(size_t index);
 
 

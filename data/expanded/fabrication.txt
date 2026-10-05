@@ -1,0 +1,315 @@
+# Copyright (c) 2026 by Endless Sky Expanded contributors
+#
+# Endless Sky is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later version.
+#
+# Endless Sky is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+
+# Outfits and ships that can only be built in the player's fabrication bays,
+# and the blueprints for building them.
+#
+# blueprint "<name>"
+# 	outfit "<outfit>" | ship "<ship model>"
+# 	cost <credits>
+# 	material "<commodity>" <tons>          (any number; taken from the station's
+# 	                                         facilities and warehouse)
+# 	days <days to build>
+# 	requires "<condition>"                 (only once the player has this condition)
+#
+# Fabricated items are resold at a fully depreciated value, like gifts, so the
+# credit cost of each blueprint is kept above a quarter of the item's value.
+#
+# Art: every image here starts as a copy of a stock image, in an "expanded"
+# folder. To use new art, overwrite the file with the same name and size. See
+# docs/expanded/art/README.md.
+
+
+
+outfitter "Expanded Fabrication"
+	"Cargo Expansion"
+	"Fuel Pod"
+	"Hyperdrive"
+
+
+
+outfit "Kiln Cargo Frame"
+	category "Systems"
+	series "Expansions"
+	index 16
+	cost 90000
+	thumbnail "outfit/expanded/kiln cargo frame"
+	"mass" 4
+	"cargo space" 30
+	"outfit space" -20
+	"unplunderable" 1
+	description "A cargo frame of zero-g alloy, built in your own fabrication bay. The alloy is so strong that the walls can be made as thin as foil, which leaves twice as much room for cargo as a stock expansion of the same size."
+
+outfit "Lattice Fuel Cell"
+	category "Systems"
+	series "Fuel"
+	index 11
+	cost 60000
+	thumbnail "outfit/expanded/lattice fuel cell"
+	"mass" 5
+	"outfit space" -6
+	"fuel capacity" 150
+	description "A fuel tank lined with grown crystal lattice, which holds fuel in its structure the way a sponge holds water. It is smaller than a fuel pod and carries half as much again. Nobody sells them, because nobody but you can grow the lattice."
+
+outfit "Lattice Shield Weave"
+	category "Systems"
+	series "Shields"
+	index 01041
+	cost 360000
+	thumbnail "outfit/expanded/lattice shield weave"
+	"mass" 30
+	"outfit space" -30
+	"shield generation" 1.0
+	"shield energy" .8
+	description "A shield generator built around a woven mesh of lattice crystal, which spreads the field more evenly than a stock emitter. It is smaller than a D67-TM, recharges faster, and draws less power. The weave hums faintly when the shields are up, in a note that the crew of every ship that carries one claims is slightly different."
+
+outfit "Foundry Ion Drive"
+	category "Engines"
+	series "Engines"
+	index 01032
+	"cost" 280000
+	thumbnail "outfit/expanded/foundry ion drive"
+	"mass" 52
+	"outfit space" -52
+	"engine capacity" -52
+	"thrust" 40
+	"thrusting energy" 2.0
+	"thrusting heat" 3.4
+	"turn" 900
+	"turning energy" 1.0
+	"turning heat" 1.8
+	"flare sprite" "effect/ion flare/medium"
+		"frame rate" 1.0
+	"flare sound" "ion medium"
+	"steering flare sprite" "effect/ion flare/medium"
+		"frame rate" 1.0
+	"steering flare sound" "ion medium"
+	description "An ion thruster and steering assembly cast as a single piece of zero-g alloy. With no joints or brackets to make room for, the whole thing fits in a good deal less space than a separate thruster and steering system, although it is not quite as strong as either one."
+
+outfit "Lattice Lance"
+	category "Guns"
+	series "Guns"
+	index 01061
+	cost 240000
+	thumbnail "outfit/expanded/lattice lance"
+	"mass" 16
+	"outfit space" -16
+	"weapon capacity" -16
+	"gun ports" -1
+	weapon
+		sprite "projectile/heavy laser"
+			"frame rate" 1
+		sound "heavy laser"
+		"hit effect" "heavy laser impact"
+		"inaccuracy" .2
+		"velocity" 480
+		"lifetime" 1
+		"reload" 1
+		"firing energy" 1.5
+		"firing heat" 3
+		"shield damage" 2.3
+		"hull damage" 3.0
+	description "A laser that focuses its beam through a rod of grown lattice crystal instead of a lens. The crystal does not warp as it heats up, so the beam stays tight over a longer distance, and hits harder when it gets there."
+
+outfit "Deepworks Fusion Core"
+	category "Power"
+	series "Generators"
+	index 01121
+	cost 2400000
+	thumbnail "outfit/expanded/deepworks fusion core"
+	"mass" 40
+	"outfit space" -40
+	"energy generation" 9
+	"heat generation" 14
+	description "A sealed generator built to a Varga Deepworks pattern six hundred years old: a fusion core in a cradle of zero-g alloy, with cooling channels grown into the casing. It makes half the power of a fusion reactor in well under half the space, and runs much cooler. The casing is stamped with a Varga part number, because Dr. Petrosyan insisted."
+
+
+
+ship "Foundry Hauler"
+	sprite "ship/expanded/foundry hauler"
+	thumbnail "thumbnail/expanded/foundry hauler"
+	"administrative cost" 4
+	attributes
+		category "Heavy Freighter"
+		"cost" 9000000
+		"shields" 4500
+		"hull" 9000
+		"required crew" 10
+		"bunks" 20
+		"mass" 1400
+		"drag" 15.5
+		"heat dissipation" .3
+		"fuel capacity" 900
+		"cargo space" 700
+		"outfit space" 430
+		"weapon capacity" 180
+		"engine capacity" 100
+		weapon
+			"blast radius" 120
+			"shield damage" 1200
+			"hull damage" 600
+			"hit force" 1800
+	outfits
+		"Laser Turret" 3
+		"Heavy Anti-Missile Turret" 2
+
+		"RT-I Radiothermal"
+		"LP144a Battery Pack"
+		"Lattice Shield Weave"
+		"Kiln Cargo Frame" 2
+		"Lattice Fuel Cell"
+		"Laser Rifle" 10
+
+		"Foundry Ion Drive"
+		"X3700 Ion Thruster"
+		"Hyperdrive"
+
+	engine -22 198
+	engine 22 198
+	gun -20 -175
+	gun 20 -175
+	turret -12 -155 "Laser Turret"
+	turret 12 -155 "Heavy Anti-Missile Turret"
+	turret 0 5 "Laser Turret"
+	turret -30 175 "Heavy Anti-Missile Turret"
+	turret 30 175 "Laser Turret"
+	leak "leak" 40 50
+	leak "flame" 30 80
+	leak "big leak" 50 30
+	explode "small explosion" 15
+	explode "medium explosion" 25
+	explode "large explosion" 35
+	explode "huge explosion" 20
+	"final explode" "final explosion large"
+	description "The Foundry Hauler is a bulk freighter built in your own fabrication bay, from a hull of zero-g alloy that weighs less and stops more than any steel a shipyard could sell you. It carries more than a Bulk Freighter, survives more than a Bulk Freighter, and is just as reluctant to turn."
+	description "	No shipyard sells them, and no shipyard can repair the hull without your alloy, which is a conversation you can expect to have more than once."
+
+ship "Deepworks Warden"
+	sprite "ship/expanded/deepworks warden"
+	thumbnail "thumbnail/expanded/deepworks warden"
+	"administrative cost" 5
+	attributes
+		category "Heavy Warship"
+		"cost" 14000000
+		"shields" 14000
+		"hull" 6000
+		"required crew" 40
+		"bunks" 70
+		"mass" 1300
+		"drag" 11
+		"heat dissipation" .5
+		"fuel capacity" 700
+		"cargo space" 150
+		"outfit space" 580
+		"weapon capacity" 260
+		"engine capacity" 160
+		weapon
+			"blast radius" 160
+			"shield damage" 1600
+			"hull damage" 800
+			"hit force" 2400
+	outfits
+		"Lattice Lance" 4
+		"Quad Blaster Turret" 3
+		"Heavy Anti-Missile Turret"
+
+		"Deepworks Fusion Core" 2
+		"LP144a Battery Pack"
+		"Lattice Shield Weave" 2
+		"Liquid Nitrogen Cooler"
+		"Lattice Fuel Cell"
+		"Laser Rifle" 15
+
+		"Foundry Ion Drive" 2
+		"Hyperdrive"
+
+	engine -16.5 143
+	engine 16.5 143
+	gun -16 -86.5 "Lattice Lance"
+	gun 16 -86.5 "Lattice Lance"
+	gun -19 -76.5 "Lattice Lance"
+	gun 19 -76.5 "Lattice Lance"
+	turret -16 -29 "Heavy Anti-Missile Turret"
+	turret 16 -29 "Quad Blaster Turret"
+	turret -50 39.5 "Quad Blaster Turret"
+	turret 50 39.5 "Quad Blaster Turret"
+	leak "leak" 30 50
+	leak "flame" 50 80
+	leak "big leak" 60 30
+	explode "tiny explosion" 40
+	explode "small explosion" 55
+	explode "medium explosion" 60
+	explode "large explosion" 40
+	"final explode" "final explosion medium"
+	description "Varga Deepworks drew up the Warden to escort their ore convoys, and was destroyed before a single one left the yard. The plans spent six hundred years folded inside a driller's notebook. Yours is the first one ever built: a heavy warship with a zero-g alloy hull, lattice-focused guns, and a fusion core where its reactor should be."
+	description "	The crew quarters have room for a family. Edda Lund says that was not an accident."
+
+
+
+blueprint "Kiln Cargo Frame"
+	outfit "Kiln Cargo Frame"
+	cost 30000
+	material "Zero-G Alloy" 15
+	days 3
+
+blueprint "Lattice Fuel Cell"
+	outfit "Lattice Fuel Cell"
+	cost 20000
+	material "Lattice Crystal" 6
+	material "Zero-G Alloy" 4
+	days 3
+
+blueprint "Lattice Lance"
+	outfit "Lattice Lance"
+	cost 80000
+	material "Lattice Crystal" 15
+	material "Zero-G Alloy" 8
+	days 5
+
+blueprint "Foundry Ion Drive"
+	outfit "Foundry Ion Drive"
+	cost 90000
+	material "Zero-G Alloy" 25
+	material "Lattice Crystal" 5
+	days 6
+
+blueprint "Lattice Shield Weave"
+	outfit "Lattice Shield Weave"
+	cost 110000
+	material "Lattice Crystal" 20
+	material "Zero-G Alloy" 10
+	days 6
+
+blueprint "Deepworks Fusion Core"
+	outfit "Deepworks Fusion Core"
+	cost 700000
+	material "Fusion Cores" 10
+	material "Zero-G Alloy" 15
+	days 10
+	requires "expanded: blueprint fusion core"
+
+blueprint "Foundry Hauler"
+	ship "Foundry Hauler"
+	cost 3000000
+	material "Zero-G Alloy" 150
+	material "Lattice Crystal" 40
+	days 20
+
+blueprint "Deepworks Warden"
+	ship "Deepworks Warden"
+	cost 6000000
+	material "Zero-G Alloy" 200
+	material "Lattice Crystal" 80
+	material "Fusion Cores" 40
+	days 30
+	requires "expanded: blueprint warden"

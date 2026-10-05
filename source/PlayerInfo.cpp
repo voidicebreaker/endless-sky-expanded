@@ -17,6 +17,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "AI.h"
 #include "audio/Audio.h"
+#include "Blueprint.h"
 #include "Conversation.h"
 #include "ConversationPanel.h"
 #include "DataFile.h"
@@ -493,7 +494,7 @@ void PlayerInfo::Load(const filesystem::path &path, const shared_ptr<PilotProfil
 		else if(key == "cargo")
 			cargo.Load(child);
 		else if(key == "industry")
-			industry.Load(child, GameData::Facilities());
+			industry.Load(child, GameData::Facilities(), &GameData::Blueprints());
 		else if(key == "basis")
 		{
 			for(const DataNode &grand : child)
@@ -1024,12 +1025,14 @@ void PlayerInfo::AdvanceDate(int amount)
 // and selling the output of any set to auto-sell on their local markets.
 void PlayerInfo::AdvanceIndustry()
 {
-	if(industry.Holdings().empty())
+	if(industry.Holdings().empty() && industry.Orders().empty())
 		return;
 
 	IndustryWorld world;
 	const Industry::DayReport report = industry.AdvanceDay(accounts.Credits(), &world);
 	accounts.AddCredits(report.Net());
+	for(const Industry::Order &order : report.finished)
+		DeliverFabrication(*order.blueprint, order.planet);
 
 	if(report.upkeep || report.sales || report.purchases || report.freight)
 	{
@@ -1106,14 +1109,77 @@ bool PlayerInfo::FoundStation(const Facility &type, const string &name)
 		<< "\t\tsprite planet/station-depot-a0\n"
 		<< "\t\tdistance " << distance << '\n'
 		<< "\t\tperiod " << distance * .8 << '\n';
-	istringstream in(text.str());
+	ChangeUniverse(text.str());
+
+	BuildFacility(type, name);
+	return true;
+}
+
+
+
+// Build a facility (or one more unit of it) on the given planet, adding any
+// shops that the facility brings with it. Paying for it is up to the caller.
+void PlayerInfo::BuildFacility(const Facility &type, const string &planetName)
+{
+	industry.Build(type, planetName);
+	if(type.Outfitters().empty() || industry.Find(type, planetName)->count > 1)
+		return;
+
+	ostringstream text;
+	text << "planet " << DataWriter::Quote(planetName) << '\n';
+	for(const string &outfitter : type.Outfitters())
+		text << "\tadd outfitter " << DataWriter::Quote(outfitter) << '\n';
+	ChangeUniverse(text.str());
+}
+
+
+
+// Deliver a finished fabrication order to the station where it was placed:
+// outfits go into storage there, and ships are parked there.
+void PlayerInfo::DeliverFabrication(const Blueprint &blueprint, const string &planetName)
+{
+	const Planet *where = GameData::Planets().Find(planetName);
+	if(!where || !where->IsValid() || !where->GetSystem())
+		return;
+
+	string message;
+	if(const Outfit *outfit = blueprint.GetOutfit())
+	{
+		planetaryStorage[where].Add(outfit, 1);
+		message = "is waiting in storage at " + where->DisplayName() + ".";
+	}
+	else if(const Ship *model = blueprint.GetShip())
+	{
+		ships.push_back(make_shared<Ship>(*model));
+		Ship &ship = *ships.back();
+		ship.SetGivenName(GameData::Phrases().Get("civilian")->Get());
+		ship.SetSystem(where->GetSystem());
+		ship.SetPlanet(where);
+		ship.SetIsSpecial();
+		ship.SetIsYours();
+		ship.SetGovernment(GameData::PlayerGovernment());
+		ship.SetIsParked(true);
+		flagship.reset();
+		message = "\"" + ship.GivenName() + "\" is parked at " + where->DisplayName()
+			+ ". Unpark it in your fleet list to have it join you.";
+	}
+	else
+		return;
+	Messages::Add({"Fabrication complete: your " + blueprint.ItemName() + " " + message,
+		GameData::MessageCategories().Get("high")});
+}
+
+
+
+// Apply some changes to the universe (in the format of an event) now, and
+// remember them so that they are applied again when the game is loaded.
+void PlayerInfo::ChangeUniverse(const string &text)
+{
+	istringstream in(text);
 	DataFile file(in);
 	list<DataNode> changes(file.begin(), file.end());
 	dataChanges.insert(dataChanges.end(), changes.begin(), changes.end());
 	AddChanges(changes);
-
-	industry.Build(type, name);
-	return true;
 }
 
 

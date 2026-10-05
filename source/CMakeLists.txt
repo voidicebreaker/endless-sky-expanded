@@ -33,6 +33,8 @@ target_sources(EndlessSkyLib PRIVATE
 	BankPanel.h
 	Bitset.cpp
 	Bitset.h
+	Blueprint.cpp
+	Blueprint.h
 	BoardingPanel.cpp
 	BoardingPanel.h
 	Body.cpp

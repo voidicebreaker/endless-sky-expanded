@@ -29,6 +29,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include <string>
 #include <vector>
 
+class Blueprint;
 class CategoryList;
 class Color;
 class ConditionsStore;
@@ -144,6 +145,7 @@ public:
 	static const Set<Mission> &Missions();
 	static const Set<News> &SpaceportNews();
 	static const Set<Facility> &Facilities();
+	static const Set<Blueprint> &Blueprints();
 	static const Set<Outfit> &Outfits();
 	static const Set<Shop<Outfit>> &Outfitters();
 	static const Set<Person> &Persons();

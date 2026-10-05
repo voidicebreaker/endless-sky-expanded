@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "Industry.h"
 
+#include "Blueprint.h"
 #include "DataNode.h"
 #include "DataWriter.h"
 #include "Facility.h"
@@ -98,11 +99,20 @@ void Industry::Holding::AddReport(const string &date, const string &text)
 
 
 
-void Industry::Load(const DataNode &node, const Set<Facility> &facilities)
+void Industry::Load(const DataNode &node, const Set<Facility> &facilities, const Set<Blueprint> *blueprints)
 {
 	for(const DataNode &child : node)
 	{
 		const string &key = child.Token(0);
+		if(key == "order" && child.Size() >= 4)
+		{
+			const Blueprint *blueprint = blueprints ? blueprints->Find(child.Token(1)) : nullptr;
+			if(blueprint && blueprint->IsDefined())
+				orders.push_back({blueprint, child.Token(2), max(1, static_cast<int>(child.Value(3)))});
+			else
+				child.PrintTrace("Skipping order for undefined blueprint:");
+			continue;
+		}
 		if(key == "warehouse" && child.Size() >= 2)
 		{
 			map<string, int> &warehouse = warehouses[child.Token(1)];
@@ -191,7 +201,7 @@ void Industry::Save(DataWriter &out) const
 	for(const auto &[planet, warehouse] : warehouses)
 		for(const auto &[commodity, tons] : warehouse)
 			hasWarehouseStock |= (tons > 0);
-	if(holdings.empty() && routes.empty() && !hasWarehouseStock && saturation.empty())
+	if(holdings.empty() && routes.empty() && !hasWarehouseStock && saturation.empty() && orders.empty())
 		return;
 
 	out.Write("industry");
@@ -233,6 +243,8 @@ void Industry::Save(DataWriter &out) const
 		}
 		for(const auto &[market, value] : saturation)
 			out.Write("saturation", market.first, market.second, round(value * 10.) / 10.);
+		for(const Order &order : orders)
+			out.Write("order", order.blueprint->TrueName(), order.planet, order.daysLeft);
 		for(const Route &route : routes)
 		{
 			out.Write("route", route.commodity);
@@ -316,6 +328,7 @@ Industry::DayReport Industry::AdvanceDay(int64_t credits, World *world)
 	DayReport report;
 	for(Holding &holding : holdings)
 		Produce(holding, credits, report);
+	Fabricate(report);
 
 	if(world)
 	{
@@ -669,4 +682,90 @@ int64_t Industry::Sell(const string &planet, const string &commodity, int tons, 
 	report.sales += income;
 	report.saturationLoss += static_cast<int64_t>(price) * tons - income;
 	return income;
+}
+
+
+
+int Industry::FabricationBays(const string &planet) const
+{
+	int bays = 0;
+	for(const Holding &holding : holdings)
+		if(holding.planet == planet && holding.type->IsFabricator())
+			bays += holding.count;
+	return bays;
+}
+
+
+
+const vector<Industry::Order> &Industry::Orders() const
+{
+	return orders;
+}
+
+
+
+int Industry::Available(const string &planet, const string &commodity) const
+{
+	int tons = 0;
+	for(const Holding &holding : holdings)
+		if(holding.planet == planet && holding.Makes(commodity))
+			tons += holding.Stock(commodity);
+	auto it = warehouses.find(planet);
+	if(it != warehouses.end())
+	{
+		auto stored = it->second.find(commodity);
+		if(stored != it->second.end())
+			tons += max(0, stored->second);
+	}
+	return tons;
+}
+
+
+
+bool Industry::HasMaterials(const Blueprint &blueprint, const string &planet) const
+{
+	for(const auto &[commodity, tons] : blueprint.Materials())
+		if(Available(planet, commodity) < tons)
+			return false;
+	return true;
+}
+
+
+
+bool Industry::PlaceOrder(const Blueprint &blueprint, const string &planet)
+{
+	if(!blueprint.IsDefined() || !FabricationBays(planet) || !HasMaterials(blueprint, planet))
+		return false;
+
+	// Use the goods the facilities have made first, then the warehouse.
+	for(const auto &[commodity, tons] : blueprint.Materials())
+	{
+		int needed = tons;
+		for(Holding &holding : holdings)
+			if(needed && holding.planet == planet && holding.Makes(commodity))
+				needed -= Collect(holding, commodity, needed);
+		if(needed)
+			Retrieve(planet, commodity, needed);
+	}
+	orders.push_back({&blueprint, planet, blueprint.Days()});
+	return true;
+}
+
+
+
+void Industry::Fabricate(DayReport &report)
+{
+	// Each fabrication bay works on one order, and orders are worked on in the
+	// order they were placed. The rest wait their turn.
+	map<string, int> busy;
+	for(auto it = orders.begin(); it != orders.end(); )
+	{
+		if(busy[it->planet]++ >= FabricationBays(it->planet) || --it->daysLeft > 0)
+		{
+			++it;
+			continue;
+		}
+		report.finished.push_back(*it);
+		it = orders.erase(it);
+	}
 }

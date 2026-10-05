@@ -21,6 +21,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include <utility>
 #include <vector>
 
+class Blueprint;
 class DataNode;
 class DataWriter;
 class Facility;
@@ -89,6 +90,15 @@ public:
 		std::string lastNote = "Waiting for the first day.";
 	};
 
+	// An order for the fabrication bays at a station to build something from a
+	// blueprint. Each bay works on one order at a time, oldest first.
+	struct Order {
+		const Blueprint *blueprint = nullptr;
+		// The true name of the planet (station) where the order was placed.
+		std::string planet;
+		int daysLeft = 1;
+	};
+
 	// The result of a day, in credits.
 	struct DayReport {
 		int64_t upkeep = 0;
@@ -100,6 +110,8 @@ public:
 		// Sales minus upkeep, freight and purchases, and the tax on it.
 		int64_t profit = 0;
 		int64_t tax = 0;
+		// Fabrication orders that were finished today. Delivering them is up to the caller.
+		std::vector<Order> finished;
 
 		// The total change to the player's credits.
 		int64_t Net() const;
@@ -140,7 +152,7 @@ public:
 
 public:
 	// Load the "industry" node of a saved game.
-	void Load(const DataNode &node, const Set<Facility> &facilities);
+	void Load(const DataNode &node, const Set<Facility> &facilities, const Set<Blueprint> *blueprints = nullptr);
 	void Save(DataWriter &out) const;
 
 	const std::vector<Holding> &Holdings() const;
@@ -184,6 +196,18 @@ public:
 	void AddRoute(const Route &route);
 	void RemoveRoute(size_t index);
 
+	// Fabrication.
+	// The number of fabrication bays the player owns on the given planet.
+	int FabricationBays(const std::string &planet) const;
+	const std::vector<Order> &Orders() const;
+	// Tons of a commodity that fabrication can use on a planet: the outputs of the
+	// player's facilities there, and the warehouse.
+	int Available(const std::string &planet, const std::string &commodity) const;
+	bool HasMaterials(const Blueprint &blueprint, const std::string &planet) const;
+	// Place an order on a planet with a fabrication bay, using up the materials.
+	// Paying the credits is up to the caller. Returns false if the order can't be placed.
+	bool PlaceOrder(const Blueprint &blueprint, const std::string &planet);
+
 	// Take up to the given number of tons of a commodity out of a holding's stock.
 	// Returns how many tons were actually taken.
 	static int Collect(Holding &holding, const std::string &commodity, int space);
@@ -198,12 +222,15 @@ private:
 	// Sell goods on a market, applying and adding to its saturation. Returns the income.
 	int64_t Sell(const std::string &planet, const std::string &commodity, int tons, int price,
 		DayReport &report, World &world);
+	// Move fabrication orders along by a day.
+	void Fabricate(DayReport &report);
 
 
 private:
 	std::vector<Holding> holdings;
 	std::map<std::string, std::map<std::string, int>> warehouses;
 	std::vector<Route> routes;
+	std::vector<Order> orders;
 	// Saturation by planet and commodity.
 	std::map<std::pair<std::string, std::string>, double> saturation;
 	DayReport lastReport;

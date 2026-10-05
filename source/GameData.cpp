@@ -651,6 +651,13 @@ const Set<Facility> &GameData::Facilities()
 
 
 
+const Set<Blueprint> &GameData::Blueprints()
+{
+	return objects.blueprints;
+}
+
+
+
 const Set<Outfit> &GameData::Outfits()
 {
 	return objects.outfits;

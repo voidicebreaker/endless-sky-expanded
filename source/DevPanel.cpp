@@ -19,16 +19,22 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "Color.h"
 #include "Command.h"
 #include "DialogPanel.h"
+#include "Facility.h"
 #include "shader/FillShader.h"
 #include "text/Font.h"
 #include "text/FontSet.h"
 #include "text/Format.h"
 #include "GameData.h"
+#include "Industry.h"
 #include "Messages.h"
+#include "Planet.h"
 #include "PlayerInfo.h"
 #include "Point.h"
 #include "Rectangle.h"
 #include "UI.h"
+
+#include <set>
+#include <string>
 
 using namespace std;
 
@@ -63,6 +69,8 @@ DevPanel::DevPanel(PlayerInfo &player)
 			GetUI().Push(DialogPanel::RequestInteger(this, &DevPanel::AddCustomCredits,
 				"How many credits do you want to add? (Negative numbers remove credits.)"));
 		}},
+		{"Stock this warehouse with produced-only goods", [this]() { StockWarehouse(); }},
+		{"Unlock all Expanded story content", [this]() { UnlockStory(); }},
 		{"Close", [this]() { GetUI().Pop(this); }},
 	};
 }
@@ -167,6 +175,42 @@ void DevPanel::AddCredits(int64_t amount)
 void DevPanel::AddCustomCredits(int amount)
 {
 	AddCredits(amount);
+}
+
+
+
+void DevPanel::StockWarehouse()
+{
+	const Planet *planet = player.GetPlanet();
+	Industry &industry = player.GetIndustry();
+	if(!planet || !industry.WarehouseCapacity(planet->TrueName()))
+	{
+		lastResult = "Land somewhere with a warehouse (a station or depot) first.";
+		return;
+	}
+	// Only the special commodities that some facility produces.
+	set<string> produced;
+	for(const auto &it : GameData::Facilities())
+		for(const auto &[commodity, amount] : it.second.Outputs())
+			produced.insert(commodity);
+	int total = 0;
+	for(const Trade::Commodity &commodity : GameData::SpecialCommodities())
+		if(produced.contains(commodity.name))
+			total += industry.Store(planet->TrueName(), commodity.name, 150);
+	lastResult = "Stored " + Format::MassString(total) + " of produced-only goods.";
+}
+
+
+
+void DevPanel::UnlockStory()
+{
+	// Every condition that the Varga Deepworks story sets, so that all
+	// facilities and blueprints can be tried out.
+	for(const char *name : {"expanded: survey drill", "expanded: crystal bore", "expanded: isotope separator",
+			"expanded: varga deep bore", "expanded: varga charter", "expanded: core forge",
+			"expanded: blueprint fusion core", "expanded: blueprint warden"})
+		player.Conditions().Set(name, 1);
+	lastResult = "Unlocked every facility and blueprint.";
 }
 
 

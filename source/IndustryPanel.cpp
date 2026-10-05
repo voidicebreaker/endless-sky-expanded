@@ -16,10 +16,12 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "IndustryPanel.h"
 
 #include "text/Alignment.h"
+#include "Blueprint.h"
 #include "CargoHold.h"
 #include "Color.h"
 #include "Command.h"
 #include "DialogPanel.h"
+#include "text/DisplayText.h"
 #include "Facility.h"
 #include "shader/FillShader.h"
 #include "text/Font.h"
@@ -29,13 +31,16 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "Industry.h"
 #include "Interface.h"
 #include "Messages.h"
+#include "Outfit.h"
 #include "Planet.h"
 #include "PlayerInfo.h"
 #include "Point.h"
 #include "Port.h"
 #include "Rectangle.h"
 #include "Screen.h"
+#include "Ship.h"
 #include "System.h"
+#include "text/Truncate.h"
 #include "UI.h"
 #include "text/WrappedText.h"
 
@@ -154,11 +159,19 @@ namespace {
 
 
 
-IndustryPanel::IndustryPanel(PlayerInfo &player, const Planet &planet)
-	: player(player), planet(planet)
+IndustryPanel::IndustryPanel(PlayerInfo &player, const Planet *planet, bool remote)
+	: player(player), planet(planet), remote(remote)
 {
-	// Let the planet panel underneath keep handling its own buttons and keys.
-	SetTrapAllEvents(false);
+	// Without a planet, start with the first place the player has facilities.
+	if(!this->planet)
+		for(const string &name : Locations())
+		{
+			this->planet = GameData::Planets().Find(name);
+			break;
+		}
+	// On the planet screen, let the panel underneath keep handling its own
+	// buttons and keys. Opened in flight, this panel is on its own.
+	SetTrapAllEvents(remote);
 	SetInterruptible(false);
 	if(Rows().empty())
 		view = View::OVERVIEW;
@@ -166,12 +179,19 @@ IndustryPanel::IndustryPanel(PlayerInfo &player, const Planet &planet)
 
 
 
-bool IndustryPanel::IsAvailable(const PlayerInfo &player, const Planet &planet)
+bool IndustryPanel::CanOpenRemotely(const PlayerInfo &player)
+{
+	return !player.GetIndustry().Holdings().empty();
+}
+
+
+
+bool IndustryPanel::IsAvailable(const PlayerInfo &player, const Planet &where)
 {
 	// Uninhabited worlds have no services to deny, so outposts can be built there.
-	if(planet.IsInhabited() && !planet.CanUseServices())
+	if(where.IsInhabited() && !where.CanUseServices())
 		return false;
-	return !player.GetIndustry().Holdings().empty() || !Facilities(player, planet).empty();
+	return !player.GetIndustry().Holdings().empty() || !Facilities(player, where).empty();
 }
 
 
@@ -179,11 +199,20 @@ bool IndustryPanel::IsAvailable(const PlayerInfo &player, const Planet &planet)
 void IndustryPanel::Draw()
 {
 	ClearZones();
+	if(remote)
+	{
+		DrawBackdrop();
+		const Rectangle box = Box();
+		FillShader::Fill(Rectangle(box.Center(), box.Dimensions() + Point(2. * PAD, 2. * PAD)),
+			*GameData::Colors().Get("panel background"));
+	}
 	if(view == View::PLANET && Rows().empty())
-		view = View::ROUTES;
+		view = View::FABRICATION;
 
 	if(view == View::PLANET)
 		DrawPlanetView();
+	else if(view == View::FABRICATION)
+		DrawFabrication();
 	else if(view == View::ROUTES)
 		DrawRoutes();
 	else if(view == View::FINANCES)
@@ -192,18 +221,22 @@ void IndustryPanel::Draw()
 		DrawOverview();
 
 	// The bottom line shows the result of the last action, or a reminder of the keys.
-	const Rectangle box = ContentBox();
+	const Rectangle box = Box();
 	const Font &font = FontSet::Get(14);
 	const Point bottom(box.Left() + PAD, box.Bottom() - LINE);
 	string hint;
 	if(view == View::PLANET)
-		hint = "E: build    U: supply    C: collect    A: auto-sell    Tab: freight";
+		hint = "E: build  U: supply  C: collect  A: sell  Left/Right: place";
+	else if(view == View::FABRICATION)
+		hint = "E: order    Left/Right: place    Tab: freight";
 	else if(view == View::ROUTES)
 		hint = "R: new route    X: delete    -/+: tons    Tab: finances";
 	else if(view == View::FINANCES)
 		hint = "Tab: all holdings";
 	else
-		hint = "Up/Down: scroll    Tab: this planet";
+		hint = "Up/Down: scroll    Tab: facilities";
+	if(remote)
+		hint += "    Esc: close";
 	if(!status.empty())
 		font.Draw(status, bottom, *GameData::Colors().Get("bright"));
 	else
@@ -214,16 +247,29 @@ void IndustryPanel::Draw()
 
 bool IndustryPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command, bool isNewPress)
 {
+	if(remote && (key == SDLK_ESCAPE || (key == 'o' && !command)))
+	{
+		GetUI().Pop(this);
+		return true;
+	}
+	if(key == SDLK_LEFT || key == SDLK_RIGHT)
+	{
+		if(view == View::PLANET || view == View::FABRICATION)
+			ChangeLocation(key == SDLK_LEFT ? -1 : 1);
+		return true;
+	}
 	if(key == SDLK_TAB)
 	{
 		if(view == View::PLANET)
+			view = View::FABRICATION;
+		else if(view == View::FABRICATION)
 			view = View::ROUTES;
 		else if(view == View::ROUTES)
 			view = View::FINANCES;
 		else if(view == View::FINANCES)
 			view = View::OVERVIEW;
 		else
-			view = Rows().empty() ? View::ROUTES : View::PLANET;
+			view = Rows().empty() ? View::FABRICATION : View::PLANET;
 		scroll = 0;
 		status.clear();
 		return true;
@@ -231,11 +277,24 @@ bool IndustryPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command,
 
 	const int step = (key == SDLK_UP ? -1 : key == SDLK_DOWN ? 1 : 0);
 	if(view == View::FINANCES)
-		return false;
+		return remote;
+	if(view == View::FABRICATION)
+	{
+		if(step)
+		{
+			selectedBlueprint = max(0, selectedBlueprint + step);
+			status.clear();
+		}
+		else if(key == 'e' || key == SDLK_RETURN || key == SDLK_KP_ENTER)
+			Order();
+		else
+			return remote;
+		return true;
+	}
 	if(view == View::OVERVIEW)
 	{
 		if(!step)
-			return false;
+			return remote;
 		scroll = max(0, scroll + step);
 	}
 	else if(view == View::ROUTES)
@@ -251,7 +310,7 @@ bool IndustryPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command,
 		else if(key == SDLK_EQUALS || key == SDLK_PLUS || key == SDLK_KP_PLUS)
 			ChangeRoute(TONS, 1);
 		else
-			return false;
+			return remote;
 	}
 	else if(step)
 	{
@@ -271,13 +330,13 @@ bool IndustryPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command,
 		const Facility *facility = Selected();
 		if(IsWarehouseSelected())
 			LoadWarehouse();
-		else if(facility && player.GetIndustry().Find(*facility, planet.TrueName()))
+		else if(facility && player.GetIndustry().Find(*facility, planet->TrueName()))
 			Collect();
 		else
 			Build();
 	}
 	else
-		return false;
+		return remote;
 
 	return true;
 }
@@ -293,16 +352,16 @@ bool IndustryPanel::Scroll(double dx, double dy)
 
 
 
-vector<const Facility *> IndustryPanel::Facilities(const PlayerInfo &player, const Planet &planet)
+vector<const Facility *> IndustryPanel::Facilities(const PlayerInfo &player, const Planet &where, bool canFound)
 {
 	vector<const Facility *> result;
-	const bool hasStation = HasStationInSystem(player, planet);
+	const bool hasStation = HasStationInSystem(player, where);
 	for(const auto &it : GameData::Facilities())
 	{
 		const Facility &facility = it.second;
 		if(!facility.IsDefined())
 			continue;
-		if(player.GetIndustry().Find(facility, planet.TrueName()))
+		if(player.GetIndustry().Find(facility, where.TrueName()))
 		{
 			result.push_back(&facility);
 			continue;
@@ -312,8 +371,8 @@ vector<const Facility *> IndustryPanel::Facilities(const PlayerInfo &player, con
 		if(!requirement.empty() && player.Conditions().Get(requirement) <= 0)
 			continue;
 		// A station can be founded from any planet in a system that doesn't have one yet.
-		if(facility.IsStation() ? !hasStation
-				: facility.CanBuildOn(planet.TrueName(), planet.Attributes(), planet.IsInhabited()))
+		if(facility.IsStation() ? canFound && !hasStation
+				: facility.CanBuildOn(where.TrueName(), where.Attributes(), where.IsInhabited()))
 			result.push_back(&facility);
 	}
 	// Stations go first, so they are easy to find.
@@ -323,13 +382,13 @@ vector<const Facility *> IndustryPanel::Facilities(const PlayerInfo &player, con
 
 
 
-bool IndustryPanel::HasStationInSystem(const PlayerInfo &player, const Planet &planet)
+bool IndustryPanel::HasStationInSystem(const PlayerInfo &player, const Planet &where)
 {
 	for(const Industry::Holding &holding : player.GetIndustry().Holdings())
 		if(holding.type->IsStation())
 		{
 			const Planet *station = GameData::Planets().Find(holding.planet);
-			if(station && station->GetSystem() == planet.GetSystem())
+			if(station && station->GetSystem() == where.GetSystem())
 				return true;
 		}
 	return false;
@@ -339,7 +398,7 @@ bool IndustryPanel::HasStationInSystem(const PlayerInfo &player, const Planet &p
 
 vector<const Facility *> IndustryPanel::Rows() const
 {
-	vector<const Facility *> rows = Facilities(player, planet);
+	vector<const Facility *> rows = Facilities(player, *planet, IsHere());
 	if(HasWarehouse())
 		rows.insert(rows.begin(), nullptr);
 	return rows;
@@ -350,7 +409,7 @@ vector<const Facility *> IndustryPanel::Rows() const
 bool IndustryPanel::HasWarehouse() const
 {
 	const Industry &industry = player.GetIndustry();
-	return industry.WarehouseCapacity(planet.TrueName()) > 0 || industry.WarehouseUsed(planet.TrueName()) > 0;
+	return industry.WarehouseCapacity(planet->TrueName()) > 0 || industry.WarehouseUsed(planet->TrueName()) > 0;
 }
 
 
@@ -374,7 +433,7 @@ bool IndustryPanel::IsWarehouseSelected() const
 
 void IndustryPanel::DrawPlanetView()
 {
-	const Rectangle box = ContentBox();
+	const Rectangle box = Box();
 	const Font &font = FontSet::Get(14);
 	const Color &faint = *GameData::Colors().Get("faint");
 	const Color &medium = *GameData::Colors().Get("medium");
@@ -384,7 +443,8 @@ void IndustryPanel::DrawPlanetView()
 	selectedRow = clamp(selectedRow, 0, static_cast<int>(rows.size()) - 1);
 	const Industry &industry = player.GetIndustry();
 
-	font.Draw("Industry on " + planet.DisplayName(), box.TopLeft() + Point(PAD, 0.), bright);
+	font.Draw("Industry on " + planet->DisplayName(), box.TopLeft() + Point(PAD, 0.), bright);
+	DrawLocationSwitcher();
 
 	// List on the left. Scroll it to keep the selection visible.
 	const double listTop = box.Top() + LINE + 6.;
@@ -399,7 +459,7 @@ void IndustryPanel::DrawPlanetView()
 		string label = "Warehouse";
 		if(rows[i])
 		{
-			const Industry::Holding *holding = industry.Find(*rows[i], planet.TrueName());
+			const Industry::Holding *holding = industry.Find(*rows[i], planet->TrueName());
 			label = rows[i]->TrueName() + (holding ? " x" + to_string(holding->count) : "");
 		}
 		font.Draw(label, corner + Point(PAD, .5 * (ROW - font.Height())), i == selectedRow ? bright : medium);
@@ -415,7 +475,7 @@ void IndustryPanel::DrawPlanetView()
 
 	// Details of the selected facility on the right.
 	const Facility &facility = *rows[selectedRow];
-	const Industry::Holding *holding = industry.Find(facility, planet.TrueName());
+	const Industry::Holding *holding = industry.Find(facility, planet->TrueName());
 	const int count = holding ? holding->count : 1;
 	const double width = box.Right() - PAD - left;
 	Point pos(left, listTop);
@@ -451,14 +511,14 @@ void IndustryPanel::DrawPlanetView()
 		if(holding->autoSell && !facility.Outputs().empty())
 		{
 			const auto &[commodity, amount] = facility.Outputs().front();
-			const string payout = PayoutString(industry, planet.TrueName(), commodity, amount * count);
+			const string payout = PayoutString(industry, planet->TrueName(), commodity, amount * count);
 			stock += payout.empty() ? " Output is auto-sold." : " Auto-selling " + commodity + " pays " + payout + ".";
 		}
 		text.Wrap(stock);
 	}
 	else if(!holding)
 		text.Wrap(facility.IsStation() ? facility.Description()
-			+ " It will be founded in orbit in the " + planet.GetSystem()->DisplayName() + " system."
+			+ " It will be founded in orbit in the " + planet->GetSystem()->DisplayName() + " system."
 			: facility.Description());
 	else
 		text.Wrap("");
@@ -479,6 +539,7 @@ void IndustryPanel::DrawPlanetView()
 	// Action buttons along the bottom of the details.
 	Point corner(left, buttonsTop);
 	const CargoHold &cargo = player.Cargo();
+	const bool here = IsHere();
 	const bool canAfford = player.Accounts().Credits() >= facility.Cost();
 	DrawButton(corner, holding ? "Expand" : facility.IsStation() ? "Found" : "Build", canAfford,
 		[this]() { Build(); });
@@ -486,12 +547,13 @@ void IndustryPanel::DrawPlanetView()
 	{
 		bool canSupply = false;
 		for(const auto &[commodity, amount] : facility.Inputs())
-			canSupply |= (cargo.Get(commodity) > 0 && holding->Stock(commodity) < holding->Capacity());
+			canSupply |= (here && cargo.Get(commodity) > 0 && holding->Stock(commodity) < holding->Capacity());
 		if(!facility.Inputs().empty())
 			DrawButton(corner, "Supply", canSupply, [this]() { Supply(); });
 		if(!facility.Outputs().empty())
 		{
-			DrawButton(corner, "Collect", holding->OutputStock() > 0 && cargo.Free() > 0, [this]() { Collect(); });
+			DrawButton(corner, "Collect", here && holding->OutputStock() > 0 && cargo.Free() > 0,
+				[this]() { Collect(); });
 			DrawButton(corner, holding->autoSell ? "Sell: on" : "Sell: off", CanAutoSell(),
 				[this]() { ToggleAutoSell(); });
 		}
@@ -502,12 +564,12 @@ void IndustryPanel::DrawPlanetView()
 
 void IndustryPanel::DrawWarehouse(double left, double top)
 {
-	const Rectangle box = ContentBox();
+	const Rectangle box = Box();
 	const Font &font = FontSet::Get(14);
 	const Color &medium = *GameData::Colors().Get("medium");
 	const Color &bright = *GameData::Colors().Get("bright");
 	const Industry &industry = player.GetIndustry();
-	const string &here = planet.TrueName();
+	const string &here = planet->TrueName();
 
 	Point pos(left, top);
 	font.Draw("Warehouse", pos, bright);
@@ -528,16 +590,16 @@ void IndustryPanel::DrawWarehouse(double left, double top)
 
 	const CargoHold &cargo = player.Cargo();
 	Point corner(left, box.Bottom() - LINE - BUTTON_SIZE.Y() - 8.);
-	DrawButton(corner, "Store", !cargo.Commodities().empty()
+	DrawButton(corner, "Store", IsHere() && !cargo.Commodities().empty()
 		&& industry.WarehouseUsed(here) < industry.WarehouseCapacity(here), [this]() { StoreCargo(); });
-	DrawButton(corner, "Load", !parts.empty() && cargo.Free() > 0, [this]() { LoadWarehouse(); });
+	DrawButton(corner, "Load", IsHere() && !parts.empty() && cargo.Free() > 0, [this]() { LoadWarehouse(); });
 }
 
 
 
 void IndustryPanel::DrawRoutes()
 {
-	const Rectangle box = ContentBox();
+	const Rectangle box = Box();
 	const Font &font = FontSet::Get(14);
 	const Color &faint = *GameData::Colors().Get("faint");
 	const Color &dim = *GameData::Colors().Get("dim");
@@ -652,7 +714,7 @@ void IndustryPanel::DrawRoutes()
 
 void IndustryPanel::DrawFinances()
 {
-	const Rectangle box = ContentBox();
+	const Rectangle box = Box();
 	const Font &font = FontSet::Get(14);
 	const Color &dim = *GameData::Colors().Get("dim");
 	const Color &medium = *GameData::Colors().Get("medium");
@@ -729,7 +791,7 @@ void IndustryPanel::DrawFinances()
 
 void IndustryPanel::DrawOverview()
 {
-	const Rectangle box = ContentBox();
+	const Rectangle box = Box();
 	const Font &font = FontSet::Get(14);
 	const Color &dim = *GameData::Colors().Get("dim");
 	const Color &medium = *GameData::Colors().Get("medium");
@@ -764,7 +826,7 @@ void IndustryPanel::DrawOverview()
 	for(int i = scroll; i < static_cast<int>(holdings.size()) && i < scroll + rows; ++i)
 	{
 		const Industry::Holding &holding = holdings[i];
-		const Color &color = (holding.planet == planet.TrueName()) ? bright : medium;
+		const Color &color = (holding.planet == planet->TrueName()) ? bright : medium;
 		font.Draw(PlanetName(holding.planet), Point(columns[0], y), color);
 		font.Draw(holding.type->TrueName() + " x" + to_string(holding.count), Point(columns[1], y), color);
 		font.Draw(StatusString(holding.status), Point(columns[2], y), color);
@@ -802,7 +864,7 @@ void IndustryPanel::Build()
 		return;
 	}
 	Industry &industry = player.GetIndustry();
-	if(facility->IsStation() && !industry.Find(*facility, planet.TrueName()))
+	if(facility->IsStation() && !industry.Find(*facility, planet->TrueName()))
 	{
 		pendingStation = facility;
 		GetUI().Push(DialogPanel::RequestString(this, &IndustryPanel::FoundStation,
@@ -810,9 +872,9 @@ void IndustryPanel::Build()
 		return;
 	}
 	player.Accounts().AddCredits(-facility->Cost());
-	industry.Build(*facility, planet.TrueName());
-	const int count = industry.Find(*facility, planet.TrueName())->count;
-	status = (count == 1 ? "Built a " + facility->TrueName() + " on " + planet.DisplayName()
+	player.BuildFacility(*facility, planet->TrueName());
+	const int count = industry.Find(*facility, planet->TrueName())->count;
+	status = (count == 1 ? "Built a " + facility->TrueName() + " on " + planet->DisplayName()
 		: "Expanded your " + facility->TrueName() + " to " + to_string(count) + " units") + ".";
 	Messages::Add({status, GameData::MessageCategories().Get("normal")});
 	UI::PlaySound(UI::UISound::NORMAL);
@@ -836,7 +898,7 @@ void IndustryPanel::FoundStation(const string &name)
 		return;
 	player.Accounts().AddCredits(-facility->Cost());
 	status = "Founded " + name + ". You will see it in orbit when you take off.";
-	Messages::Add({"Founded " + name + " in the " + planet.GetSystem()->DisplayName() + " system.",
+	Messages::Add({"Founded " + name + " in the " + planet->GetSystem()->DisplayName() + " system.",
 		GameData::MessageCategories().Get("normal")});
 	UI::PlaySound(UI::UISound::NORMAL);
 }
@@ -845,8 +907,10 @@ void IndustryPanel::FoundStation(const string &name)
 
 void IndustryPanel::Supply()
 {
+	if(!RequireHere())
+		return;
 	const Facility *facility = Selected();
-	Industry::Holding *holding = facility ? player.GetIndustry().Find(*facility, planet.TrueName()) : nullptr;
+	Industry::Holding *holding = facility ? player.GetIndustry().Find(*facility, planet->TrueName()) : nullptr;
 	if(!holding)
 		return;
 	if(facility->Inputs().empty())
@@ -888,8 +952,10 @@ void IndustryPanel::Supply()
 
 void IndustryPanel::Collect()
 {
+	if(!RequireHere())
+		return;
 	const Facility *facility = Selected();
-	Industry::Holding *holding = facility ? player.GetIndustry().Find(*facility, planet.TrueName()) : nullptr;
+	Industry::Holding *holding = facility ? player.GetIndustry().Find(*facility, planet->TrueName()) : nullptr;
 	if(!holding)
 		return;
 
@@ -922,7 +988,7 @@ void IndustryPanel::Collect()
 void IndustryPanel::ToggleAutoSell()
 {
 	const Facility *facility = Selected();
-	Industry::Holding *holding = facility ? player.GetIndustry().Find(*facility, planet.TrueName()) : nullptr;
+	Industry::Holding *holding = facility ? player.GetIndustry().Find(*facility, planet->TrueName()) : nullptr;
 	if(!holding || facility->Outputs().empty())
 		return;
 	if(!CanAutoSell())
@@ -941,8 +1007,8 @@ void IndustryPanel::ToggleAutoSell()
 
 bool IndustryPanel::CanAutoSell() const
 {
-	const System *system = planet.GetSystem();
-	return planet.IsInhabited() && planet.GetPort().HasService(Port::ServicesType::Trading)
+	const System *system = planet->GetSystem();
+	return planet->IsInhabited() && planet->GetPort().HasService(Port::ServicesType::Trading)
 		&& system && system->HasTrade();
 }
 
@@ -950,6 +1016,8 @@ bool IndustryPanel::CanAutoSell() const
 
 void IndustryPanel::StoreCargo()
 {
+	if(!RequireHere())
+		return;
 	Industry &industry = player.GetIndustry();
 	CargoHold &cargo = player.Cargo();
 	int total = 0;
@@ -957,7 +1025,7 @@ void IndustryPanel::StoreCargo()
 	const map<string, int> commodities = cargo.Commodities();
 	for(const auto &[commodity, tons] : commodities)
 	{
-		const int stored = industry.Store(planet.TrueName(), commodity, tons);
+		const int stored = industry.Store(planet->TrueName(), commodity, tons);
 		if(!stored)
 			continue;
 		player.AdjustBasis(commodity, -player.GetBasis(commodity, stored));
@@ -973,13 +1041,15 @@ void IndustryPanel::StoreCargo()
 
 void IndustryPanel::LoadWarehouse()
 {
+	if(!RequireHere())
+		return;
 	Industry &industry = player.GetIndustry();
 	CargoHold &cargo = player.Cargo();
 	int total = 0;
-	const map<string, int> contents = industry.Warehouse(planet.TrueName());
+	const map<string, int> contents = industry.Warehouse(planet->TrueName());
 	for(const auto &[commodity, tons] : contents)
 	{
-		const int taken = industry.Retrieve(planet.TrueName(), commodity, min(tons, cargo.Free()));
+		const int taken = industry.Retrieve(planet->TrueName(), commodity, min(tons, cargo.Free()));
 		if(!taken)
 			continue;
 		cargo.Add(commodity, taken);
@@ -995,11 +1065,11 @@ void IndustryPanel::LoadWarehouse()
 void IndustryPanel::NewRoute()
 {
 	Industry::Route route;
-	route.from = planet.TrueName();
+	route.from = planet->TrueName();
 	// Default to carrying something made here, to the first other place the player owns.
 	route.commodity = "Metal";
 	for(const Industry::Holding &holding : player.GetIndustry().Holdings())
-		if(holding.planet == planet.TrueName() && !holding.type->Outputs().empty())
+		if(holding.planet == planet->TrueName() && !holding.type->Outputs().empty())
 		{
 			route.commodity = holding.type->Outputs().front().first;
 			break;
@@ -1058,7 +1128,11 @@ void IndustryPanel::ChangeRoute(int field, int step)
 
 vector<string> IndustryPanel::Locations() const
 {
-	set<string> names = {planet.TrueName()};
+	set<string> names;
+	if(planet)
+		names.insert(planet->TrueName());
+	if(player.GetPlanet())
+		names.insert(player.GetPlanet()->TrueName());
 	for(const Industry::Holding &holding : player.GetIndustry().Holdings())
 		names.insert(holding.planet);
 	vector<string> result(names.begin(), names.end());
@@ -1088,11 +1162,244 @@ vector<string> IndustryPanel::Commodities()
 
 string IndustryPanel::DefaultStationName() const
 {
-	const string base = planet.GetSystem()->DisplayName() + " Station";
+	const string base = planet->GetSystem()->DisplayName() + " Station";
 	if(PlayerInfo::IsValidStationName(base))
 		return base;
 	for(int i = 2; i < 10; ++i)
 		if(PlayerInfo::IsValidStationName(base + " " + to_string(i)))
 			return base + " " + to_string(i);
 	return "";
+}
+
+
+
+Rectangle IndustryPanel::Box() const
+{
+	// In flight there is no planet screen to draw on, so use the middle of the screen.
+	if(remote)
+		return Rectangle(Point(0., -20.), Point(600., 340.));
+	return ContentBox();
+}
+
+
+
+bool IndustryPanel::IsHere() const
+{
+	return planet && player.GetPlanet() == planet;
+}
+
+
+
+bool IndustryPanel::RequireHere()
+{
+	if(IsHere())
+		return true;
+	status = "You need to be landed here to move goods in or out.";
+	UI::PlaySound(UI::UISound::FAILURE);
+	return false;
+}
+
+
+
+void IndustryPanel::ChangeLocation(int step)
+{
+	const vector<string> locations = Locations();
+	if(locations.size() < 2)
+		return;
+	const Planet *next = GameData::Planets().Find(Cycle(locations, planet->TrueName(), step));
+	if(next && next->IsValid())
+		planet = next;
+	selectedRow = 0;
+	scroll = 0;
+	status.clear();
+}
+
+
+
+void IndustryPanel::DrawLocationSwitcher()
+{
+	const vector<string> locations = Locations();
+	if(locations.size() < 2)
+		return;
+	const Rectangle box = Box();
+	const Font &font = FontSet::Get(14);
+	const Color &dim = *GameData::Colors().Get("dim");
+	const Color &medium = *GameData::Colors().Get("medium");
+	const Color &bright = *GameData::Colors().Get("bright");
+
+	const int index = static_cast<int>(find(locations.begin(), locations.end(), planet->TrueName())
+		- locations.begin());
+	const string label = (IsHere() ? "here, " : "") + to_string(index + 1) + " of " + to_string(locations.size());
+	const Rectangle right = Rectangle::FromCorner(Point(box.Right() - PAD - ARROW_SIZE.X(), box.Top() - 1.), ARROW_SIZE);
+	const double labelLeft = right.Left() - BUTTON_GAP - font.Width(label);
+	const Rectangle left = Rectangle::FromCorner(Point(labelLeft - BUTTON_GAP - ARROW_SIZE.X(), box.Top() - 1.),
+		ARROW_SIZE);
+	font.Draw(label, Point(labelLeft, box.Top()), medium);
+	for(const Rectangle *arrow : {&left, &right})
+	{
+		FillShader::Fill(*arrow, dim);
+		const string symbol = (arrow == &left) ? "<" : ">";
+		font.Draw(symbol, arrow->Center() - .5 * Point(font.Width(symbol), font.Height()), bright);
+	}
+	AddZone(left, [this]() { ChangeLocation(-1); });
+	AddZone(right, [this]() { ChangeLocation(1); });
+}
+
+
+
+vector<const Blueprint *> IndustryPanel::Blueprints() const
+{
+	vector<const Blueprint *> result;
+	for(const auto &it : GameData::Blueprints())
+	{
+		const Blueprint &blueprint = it.second;
+		const string &requirement = blueprint.Requirement();
+		if(blueprint.IsDefined() && (requirement.empty() || player.Conditions().Get(requirement) > 0))
+			result.push_back(&blueprint);
+	}
+	// Outfits first, then ships, each from cheapest to most expensive.
+	sort(result.begin(), result.end(), [](const Blueprint *a, const Blueprint *b)
+	{
+		if(!a->GetShip() != !b->GetShip())
+			return !a->GetShip();
+		return a->Cost() < b->Cost();
+	});
+	return result;
+}
+
+
+
+void IndustryPanel::DrawFabrication()
+{
+	const Rectangle box = Box();
+	const Font &font = FontSet::Get(14);
+	const Color &faint = *GameData::Colors().Get("faint");
+	const Color &dim = *GameData::Colors().Get("dim");
+	const Color &medium = *GameData::Colors().Get("medium");
+	const Color &bright = *GameData::Colors().Get("bright");
+	const Industry &industry = player.GetIndustry();
+	const string &here = planet->TrueName();
+
+	font.Draw("Fabrication at " + planet->DisplayName(), box.TopLeft() + Point(PAD, 0.), bright);
+	DrawLocationSwitcher();
+	const double listTop = box.Top() + LINE + 6.;
+	WrappedText text(font);
+
+	const int bays = industry.FabricationBays(here);
+	if(!bays)
+	{
+		vector<string> places;
+		for(const string &location : Locations())
+			if(industry.FabricationBays(location))
+				places.push_back(PlanetName(location));
+		text.SetWrapWidth(box.Width() - 2. * PAD);
+		text.Wrap("There is no fabrication bay here. Build one on any of your stations to make outfits and ships"
+			" that nobody sells, from materials that only your stations and outposts can produce."
+			+ (places.empty() ? string() : " You have fabrication bays at " + Join(places)
+				+ ". Use the arrows above to go there."));
+		text.Draw(Point(box.Left() + PAD, listTop), medium);
+		return;
+	}
+
+	const vector<const Blueprint *> blueprints = Blueprints();
+	if(blueprints.empty())
+	{
+		font.Draw("You don't have any blueprints yet.", Point(box.Left() + PAD, listTop), medium);
+		return;
+	}
+	selectedBlueprint = clamp(selectedBlueprint, 0, static_cast<int>(blueprints.size()) - 1);
+
+	// The list of blueprints on the left.
+	const int visible = VisibleRows(box, listTop);
+	scroll = clamp(scroll, max(0, selectedBlueprint - visible + 1), selectedBlueprint);
+	for(int i = scroll; i < static_cast<int>(blueprints.size()) && i < scroll + visible; ++i)
+	{
+		const Point corner(box.Left(), listTop + (i - scroll) * ROW);
+		const Rectangle row = Rectangle::FromCorner(corner, Point(LIST_WIDTH, ROW));
+		if(i == selectedBlueprint)
+			FillShader::Fill(row, faint);
+		const bool ready = industry.HasMaterials(*blueprints[i], here);
+		font.Draw({blueprints[i]->ItemName(), {static_cast<int>(LIST_WIDTH - 2. * PAD), Truncate::BACK}},
+			corner + Point(PAD, .5 * (ROW - font.Height())), i == selectedBlueprint ? bright : ready ? medium : dim);
+		AddZone(row, [this, i]() { selectedBlueprint = i; status.clear(); });
+	}
+
+	// Details of the selected blueprint on the right.
+	const Blueprint &blueprint = *blueprints[selectedBlueprint];
+	const double left = box.Left() + LIST_WIDTH + PAD;
+	const double width = box.Right() - PAD - left;
+	Point pos(left, listTop);
+	const Outfit *outfit = blueprint.GetOutfit();
+	const Ship *ship = blueprint.GetShip();
+	font.Draw(blueprint.ItemName(), pos, bright);
+	pos.Y() += LINE;
+	const string kind = outfit ? "Outfit, " + outfit->Category() : "Ship, " + ship->BaseAttributes().Category();
+	font.Draw(kind + ". Takes " + to_string(blueprint.Days()) + (blueprint.Days() == 1 ? " day." : " days."),
+		pos, medium);
+	pos.Y() += LINE;
+	font.Draw("Credits: " + Format::CreditString(blueprint.Cost(), false), pos,
+		player.Accounts().Credits() >= blueprint.Cost() ? medium : dim);
+	pos.Y() += LINE;
+	for(const auto &[commodity, tons] : blueprint.Materials())
+	{
+		const int available = industry.Available(here, commodity);
+		font.Draw(commodity + ": " + to_string(min(available, tons)) + " / " + to_string(tons), pos,
+			available >= tons ? medium : dim);
+		pos.Y() += LINE;
+	}
+
+	// The first paragraph of the item's description, if there is room.
+	const double buttonsTop = box.Bottom() - LINE - BUTTON_SIZE.Y() - 8.;
+	string description = outfit ? outfit->Description() : ship->Description();
+	description = description.substr(0, description.find('\n'));
+	text.SetWrapWidth(width);
+	text.Wrap(description);
+	pos.Y() += 4.;
+	if(pos.Y() + text.Height() <= buttonsTop - LINE)
+	{
+		text.Draw(pos, dim);
+		pos.Y() += text.Height();
+	}
+
+	// The orders at this station, above the buttons.
+	vector<string> queue;
+	int position = 0;
+	for(const Industry::Order &order : industry.Orders())
+		if(order.planet == here)
+			queue.push_back(order.blueprint->ItemName() + (position++ < bays
+				? " (" + to_string(order.daysLeft) + (order.daysLeft == 1 ? " day)" : " days)") : " (waiting)"));
+	text.Wrap(queue.empty() ? "Bays: " + to_string(bays) + ". Nothing is being made."
+		: "Bays: " + to_string(bays) + ". Making: " + Join(queue) + ".");
+	if(pos.Y() + text.Height() <= buttonsTop)
+		text.Draw(Point(left, buttonsTop - text.Height() - 4.), medium);
+
+	Point corner(left, buttonsTop);
+	DrawButton(corner, "Order", industry.HasMaterials(blueprint, here)
+		&& player.Accounts().Credits() >= blueprint.Cost(), [this]() { Order(); });
+}
+
+
+
+void IndustryPanel::Order()
+{
+	const vector<const Blueprint *> blueprints = Blueprints();
+	Industry &industry = player.GetIndustry();
+	const string &here = planet->TrueName();
+	if(blueprints.empty() || !industry.FabricationBays(here))
+		return;
+	const Blueprint &blueprint = *blueprints[clamp(selectedBlueprint, 0, static_cast<int>(blueprints.size()) - 1)];
+	const int64_t missing = blueprint.Cost() - player.Accounts().Credits();
+	if(missing > 0)
+		status = "You need " + Format::CreditString(missing, false) + " more.";
+	else if(!industry.HasMaterials(blueprint, here))
+		status = "Not enough materials here. Have your facilities or freight routes bring them to this station.";
+	else if(industry.PlaceOrder(blueprint, here))
+	{
+		player.Accounts().AddCredits(-blueprint.Cost());
+		status = "Ordered: " + blueprint.ItemName() + ". " + (blueprint.GetShip()
+			? "It will be parked here when it is finished." : "It will be left in storage here when it is finished.");
+		UI::PlaySound(UI::UISound::NORMAL);
+		return;
+	}
+	UI::PlaySound(UI::UISound::FAILURE);
 }

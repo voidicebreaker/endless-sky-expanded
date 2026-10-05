@@ -1,0 +1,146 @@
+# Copyright (c) 2026 by Endless Sky Expanded contributors
+#
+# Endless Sky is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later version.
+#
+# Endless Sky is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+
+
+test "Fabrication - Setup"
+	status partial
+	description "Helper: found a station from New Greenland with plenty of credits, land on it, and build a Fabrication Bay."
+	sequence
+		inject "New Greenland Industry Save"
+		call "Load First Savegame"
+		input
+			key "F12"
+		input
+			key 5
+		input
+			key 5
+		input
+			key 5
+		input
+			key 5
+		input
+			key 5
+		input
+			key 5
+		input
+			key 5
+		input
+			key 5
+		input
+			key "escape"
+		input
+			key n
+		input
+			key e
+		input
+			key "Return"
+		call "Depart"
+		navigate
+			"travel destination" "Arcturus Station"
+		call "Land"
+		# The rows are: the warehouse, the Orbital Station, the Alloy Kiln, then the Fabrication Bay.
+		input
+			key n
+		input
+			key "Down"
+		input
+			key "Down"
+		input
+			key "Down"
+		input
+			key e
+		assert
+			and
+				"flagship planet: Arcturus Station" > 0
+				"facility: Fabrication Bay" == 1
+		# Fill the station's warehouse with materials from the developer menu.
+		input
+			key "F12"
+		input
+			key 7
+		input
+			key "escape"
+
+
+test "Fabrication - Order An Outfit"
+	status active
+	description "Tests ordering an outfit at a station's fabrication bay, and that it is left in storage there when finished."
+	sequence
+		call "Fabrication - Setup"
+		apply
+			"test: credits before" = "credits"
+		# Switch to the fabrication view and order the first blueprint, the Lattice Fuel Cell.
+		input
+			key "Tab"
+		input
+			key e
+		assert
+			"credits" == "test: credits before" - 20000
+		input
+			key "F12"
+		input
+			key 1
+		input
+			key 1
+		assert
+			"outfit (storage): Lattice Fuel Cell" == 0
+		input
+			key 1
+		input
+			key "escape"
+		assert
+			"outfit (storage): Lattice Fuel Cell" == 1
+
+
+test "Fabrication - Order A Ship From Flight"
+	status active
+	description "Tests managing industry remotely in flight: ordering a ship at a station from space, which is parked at the station when finished."
+	sequence
+		call "Fabrication - Setup"
+		call "Depart"
+		apply
+			"test: credits before" = "credits"
+		# Open the industry panel in flight. It starts at the station; switch to
+		# fabrication and pick the Foundry Hauler, after the five outfits.
+		input
+			key o
+		input
+			key "Tab"
+		input
+			key "Down"
+		input
+			key "Down"
+		input
+			key "Down"
+		input
+			key "Down"
+		input
+			key "Down"
+		input
+			key e
+		input
+			key "escape"
+		assert
+			and
+				"flagship landed" == 0
+				"credits" == "test: credits before" - 3000000
+		input
+			key "F12"
+		input
+			key 3
+		input
+			key "escape"
+		assert
+			and
+				"ship model (all): Foundry Hauler" == 1
+				"ship model: Foundry Hauler" == 0

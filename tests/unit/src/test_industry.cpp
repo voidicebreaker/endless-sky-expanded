@@ -22,6 +22,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "datanode-factory.h"
 
 // ... and any system includes needed for the test file.
+#include "../../../source/Blueprint.h"
 #include "../../../source/DataWriter.h"
 #include "../../../source/Facility.h"
 #include "../../../source/Set.h"
@@ -68,6 +69,26 @@ Set<Facility> MakeFacilities()
 	facilities.Get("Depot")->Load(AsDataNode(DEPOT));
 	return facilities;
 }
+
+const std::string BAY = R"(facility "Bay"
+	warehouse 100
+	fabricator
+	outfitter "Shop"
+	attributes "player station"
+)";
+
+const std::string KILN = R"(facility "Kiln"
+	input "Metal" 1
+	output "Zero-G Alloy" 1
+	storage 20
+)";
+
+const std::string GADGET = R"(blueprint "Gadget"
+	outfit "Gadget"
+	cost 5000
+	material "Zero-G Alloy" 10
+	days 2
+)";
 
 // What selling tons on a fresh market pays, with saturation applied.
 int64_t FreshSale(int price, int tons)
@@ -569,6 +590,93 @@ SCENARIO( "Saving and loading facilities", "[Industry]" ) {
 		industry.Load(AsDataNode("industry\n\tfacility \"Gone\"\n\t\tplanet Earth\n"), facilities);
 		THEN( "it is skipped" ) {
 			CHECK( industry.Holdings().empty() );
+		}
+	}
+}
+SCENARIO( "Fabricating from blueprints", "[Industry]" ) {
+	Set<Facility> facilities;
+	facilities.Get("Bay")->Load(AsDataNode(BAY));
+	facilities.Get("Kiln")->Load(AsDataNode(KILN));
+	Set<Blueprint> blueprints;
+	blueprints.Get("Gadget")->Load(AsDataNode(GADGET));
+	const Facility &bay = *facilities.Get("Bay");
+	const Facility &kiln = *facilities.Get("Kiln");
+	const Blueprint &gadget = *blueprints.Get("Gadget");
+
+	GIVEN( "a blueprint and a fabricator" ) {
+		THEN( "they are loaded" ) {
+			CHECK( gadget.IsDefined() );
+			CHECK( gadget.GetOutfit() );
+			CHECK_FALSE( gadget.GetShip() );
+			CHECK( gadget.Cost() == 5000 );
+			CHECK( gadget.Days() == 2 );
+			REQUIRE( gadget.Materials().size() == 1 );
+			CHECK( gadget.Materials().front().second == 10 );
+			CHECK( bay.IsFabricator() );
+			CHECK( bay.Outfitters() == std::vector<std::string>{"Shop"} );
+			CHECK_FALSE( kiln.IsFabricator() );
+		}
+	}
+	GIVEN( "a station with a bay, a kiln, and alloy in both the kiln and the warehouse" ) {
+		Industry industry;
+		industry.Build(bay, "Station");
+		industry.Build(kiln, "Station");
+		Industry::Supply(*industry.Find(kiln, "Station"), "Zero-G Alloy", 6);
+		industry.Store("Station", "Zero-G Alloy", 10);
+		REQUIRE( industry.FabricationBays("Station") == 1 );
+		REQUIRE( industry.Available("Station", "Zero-G Alloy") == 16 );
+
+		THEN( "nothing can be ordered where there is no bay" ) {
+			CHECK( industry.FabricationBays("Earth") == 0 );
+			CHECK_FALSE( industry.PlaceOrder(gadget, "Earth") );
+		}
+		WHEN( "an order is placed" ) {
+			REQUIRE( industry.PlaceOrder(gadget, "Station") );
+			THEN( "materials come from the kiln first, then the warehouse" ) {
+				CHECK( industry.Find(kiln, "Station")->Stock("Zero-G Alloy") == 0 );
+				CHECK( industry.Warehouse("Station").at("Zero-G Alloy") == 6 );
+				REQUIRE( industry.Orders().size() == 1 );
+				CHECK( industry.Orders().front().daysLeft == 2 );
+			}
+			THEN( "another order needs more materials" ) {
+				CHECK_FALSE( industry.HasMaterials(gadget, "Station") );
+				CHECK_FALSE( industry.PlaceOrder(gadget, "Station") );
+			}
+			THEN( "it is finished after the given number of days" ) {
+				CHECK( industry.AdvanceDay(0).finished.empty() );
+				const Industry::DayReport report = industry.AdvanceDay(0);
+				REQUIRE( report.finished.size() == 1 );
+				CHECK( report.finished.front().blueprint == &gadget );
+				CHECK( report.finished.front().planet == "Station" );
+				CHECK( industry.Orders().empty() );
+			}
+		}
+		WHEN( "two orders are placed with one bay" ) {
+			industry.Store("Station", "Zero-G Alloy", 4);
+			REQUIRE( industry.PlaceOrder(gadget, "Station") );
+			REQUIRE( industry.PlaceOrder(gadget, "Station") );
+			industry.AdvanceDay(0);
+			THEN( "the second waits for the first" ) {
+				CHECK( industry.Orders()[0].daysLeft == 1 );
+				CHECK( industry.Orders()[1].daysLeft == 2 );
+				CHECK( industry.AdvanceDay(0).finished.size() == 1 );
+				CHECK( industry.AdvanceDay(0).finished.empty() );
+				CHECK( industry.AdvanceDay(0).finished.size() == 1 );
+			}
+		}
+		WHEN( "an order is saved and loaded" ) {
+			REQUIRE( industry.PlaceOrder(gadget, "Station") );
+			industry.AdvanceDay(0);
+			DataWriter writer;
+			industry.Save(writer);
+			Industry loaded;
+			loaded.Load(AsDataNode(writer.SaveToString()), facilities, &blueprints);
+			THEN( "it keeps its progress" ) {
+				REQUIRE( loaded.Orders().size() == 1 );
+				CHECK( loaded.Orders().front().blueprint == &gadget );
+				CHECK( loaded.Orders().front().planet == "Station" );
+				CHECK( loaded.Orders().front().daysLeft == 1 );
+			}
 		}
 	}
 }

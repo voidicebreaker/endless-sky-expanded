@@ -87,6 +87,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ${{ env.OUTPUT }}
+      - uses: actions/checkout@v5
+        with:
+          show-progress: false
+          path: repo
+          sparse-checkout: |
+            docs/expanded
+            utils/expanded
+            images
+      - name: Build the art pack
+        run: cd repo && python3 utils/expanded/make_art_pack.py ../art-pack.zip
       - name: Replace the playtest release
         run: |
           NOTES="Windows playtest build of Endless Sky: Expanded.
@@ -96,11 +106,13 @@ jobs:
           Built: $(date -u '+%Y-%m-%d %H:%M') UTC
 
           Download the zip, extract it, and run 'Endless Sky.exe'.
-          Press \` or F12 on the planet screen to open the developer menu.
+          Press \` or F12 to open the developer menu, and O in flight to manage your industry.
+
+          art-pack.zip has prompts and reference images for making new art for the mod.
 
           https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           gh release delete playtest --yes --cleanup-tag || true
-          gh release create playtest "$OUTPUT" \
+          gh release create playtest "$OUTPUT" art-pack.zip \
             --target "${{ github.sha }}" \
             --title "Playtest Build" \
             --notes "$NOTES" \

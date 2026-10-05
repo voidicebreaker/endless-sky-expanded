@@ -369,6 +369,23 @@ void UniverseObjects::CheckReferences()
 					Logger::Log("Facility \"" + it.first + "\" uses unknown commodity \"" + amount.first + "\".",
 						Logger::Level::WARNING);
 	}
+	// Blueprints must name an outfit or ship, and use defined commodities.
+	for(const auto &it : blueprints)
+	{
+		if(!it.second.IsDefined())
+		{
+			Warn("blueprint", it.first);
+			continue;
+		}
+		if(it.second.GetOutfit() && !it.second.GetOutfit()->IsDefined())
+			Logger::Log("Blueprint \"" + it.first + "\" builds an undefined outfit.", Logger::Level::WARNING);
+		if(it.second.GetShip() && !it.second.GetShip()->IsValid())
+			Logger::Log("Blueprint \"" + it.first + "\" builds an undefined ship.", Logger::Level::WARNING);
+		for(const auto &amount : it.second.Materials())
+			if(!commodityNames.contains(amount.first))
+				Logger::Log("Blueprint \"" + it.first + "\" uses unknown commodity \"" + amount.first + "\".",
+					Logger::Level::WARNING);
+	}
 }
 
 
@@ -451,6 +468,13 @@ void UniverseObjects::LoadFile(const filesystem::path &path, const PlayerInfo &p
 			if(overwrite)
 				*event = GameEvent();
 			event->Load(node, playerConditions);
+		}
+		else if(key == "blueprint" && hasValue)
+		{
+			Blueprint *blueprint = blueprints.Get(node.Token(1));
+			if(overwrite)
+				*blueprint = Blueprint();
+			blueprint->Load(node);
 		}
 		else if(key == "facility" && hasValue)
 		{

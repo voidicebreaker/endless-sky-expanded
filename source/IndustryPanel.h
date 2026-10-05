@@ -21,26 +21,34 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include <string>
 #include <vector>
 
+class Blueprint;
 class Facility;
 class Planet;
 class PlayerInfo;
 class Point;
+class Rectangle;
 
 
 
-// Planet screen panel for the player's industry, drawn in the planet
-// description area like the bank. It has four views, switched with Tab:
-// this planet (build, supply and collect from facilities, use the warehouse,
-// found a station), freight routes, finances (taxes and market saturation),
-// and an overview of all holdings.
+// Panel for the player's industry, drawn in the planet description area like
+// the bank, or on its own in flight. It has five views, switched with Tab:
+// facilities at one place (build, supply and collect, use the warehouse,
+// found a station), fabrication from blueprints, freight routes, finances
+// (taxes and market saturation), and an overview of all holdings. The first
+// two can show any place where the player owns facilities, but goods can only
+// be moved in and out of the place where the player is landed.
 class IndustryPanel : public Panel {
 public:
-	IndustryPanel(PlayerInfo &player, const Planet &planet);
+	// Without a planet, the panel starts at the first place where the player
+	// owns facilities. A remote panel is opened in flight.
+	IndustryPanel(PlayerInfo &player, const Planet *planet, bool remote = false);
 
 	// Check whether the Industry button should be shown on this planet: there is
 	// a facility that can be built or is owned here, or the player owns
 	// facilities elsewhere that they may want to review.
 	static bool IsAvailable(const PlayerInfo &player, const Planet &planet);
+	// Check whether there is anything to manage from flight.
+	static bool CanOpenRemotely(const PlayerInfo &player);
 
 	virtual void Draw() override;
 
@@ -53,6 +61,7 @@ protected:
 private:
 	enum class View {
 		PLANET,
+		FABRICATION,
 		ROUTES,
 		FINANCES,
 		OVERVIEW
@@ -61,7 +70,9 @@ private:
 
 private:
 	// The facility types that can be built or are owned on this planet.
-	static std::vector<const Facility *> Facilities(const PlayerInfo &player, const Planet &planet);
+	// Stations can only be founded if canFound is set (the player is there).
+	static std::vector<const Facility *> Facilities(const PlayerInfo &player, const Planet &planet,
+		bool canFound = true);
 	// Whether the player already has a station in the given planet's system.
 	static bool HasStationInSystem(const PlayerInfo &player, const Planet &planet);
 	// The rows of the planet view: the warehouse (as nullptr) if there is one,
@@ -71,7 +82,16 @@ private:
 	const Facility *Selected() const;
 	bool IsWarehouseSelected() const;
 
+	Rectangle Box() const;
+	// Whether the player is landed at the place this panel is showing.
+	bool IsHere() const;
+	// If the player is not landed here, say so and return false.
+	bool RequireHere();
+	void ChangeLocation(int step);
+	void DrawLocationSwitcher();
+
 	void DrawPlanetView();
+	void DrawFabrication();
 	void DrawWarehouse(double left, double top);
 	void DrawRoutes();
 	void DrawFinances();
@@ -89,6 +109,9 @@ private:
 	// Warehouse actions.
 	void StoreCargo();
 	void LoadWarehouse();
+	// Fabrication: the blueprints the player has unlocked, and ordering one.
+	std::vector<const Blueprint *> Blueprints() const;
+	void Order();
 	// Freight route actions.
 	void NewRoute();
 	void DeleteRoute();
@@ -102,10 +125,12 @@ private:
 
 private:
 	PlayerInfo &player;
-	const Planet &planet;
+	const Planet *planet = nullptr;
+	bool remote = false;
 	View view = View::PLANET;
 	int selectedRow = 0;
 	int selectedRoute = 0;
+	int selectedBlueprint = 0;
 	int scroll = 0;
 	std::string status;
 	// The station type waiting for the player to choose a name.

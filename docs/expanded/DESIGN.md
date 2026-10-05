@@ -18,7 +18,8 @@ updated at the end of every piece.
 | 2b. Outpost story (Varga Deepworks), produced-only goods and quests | Done, waiting for playtest |
 | 3. Space stations, warehouses and freight routes | Done, waiting for playtest |
 | 3b. Industry tax and market saturation | Done, waiting for playtest |
-| 4. Next | To be agreed |
+| 4. Station fabrication: exclusive outfits and ships, remote management, art pack | Done, waiting for playtest |
+| 5. Next | To be agreed (home base / carrier ideas parked for now) |
 
 ## Piece 0 - Pipeline + dev menu (done)
 
@@ -183,9 +184,51 @@ Goal: stop passive industry income from growing without limit, and show players 
 - Tests: unit tests for the brackets, the taxed day report, saturation build-up, overnight decay
   and saving.
 
+## Piece 4 - Station fabrication and remote management (done)
+
+Goal: give stations and outposts something only they can make, X4 style: build the gear you fly.
+
+- New produced-only materials (special commodities): Zero-G Alloy (Alloy Kiln, station module:
+  Metal 3 + Heavy Metals 1), Lattice Crystal (Lattice Vat, uninhabited worlds only: Plastic 1 +
+  Heavy Metals 1), Fusion Cores (Core Forge, station module, unlocked by the story: Refined
+  Isotopes 1 + Zero-G Alloy 1). Stations and outposts depend on each other through freight routes.
+- Fabrication Bay (station module, `fabricator`): each unit works on one order at a time. Building
+  the first one adds the "Expanded Fabrication" outfitter to the station (`outfitter` key on
+  facilities, applied as a saved universe change by `PlayerInfo::BuildFacility`).
+- New data type `blueprint` (`Blueprint` class, `data/expanded/fabrication.txt`): outfit or ship,
+  credits, materials, days, optional `requires` condition. Orders (`Industry::Order`) take materials
+  from facility outputs at the station first, then its warehouse (`PlaceOrder`), queue per station,
+  and are saved in the industry block. Finished orders are delivered by
+  `PlayerInfo::DeliverFabrication`: outfits into planetary storage at the station, ships parked
+  there (unpark to have them fly to you).
+- Catalog: Kiln Cargo Frame, Lattice Fuel Cell, Lattice Lance, Foundry Ion Drive (thrust and
+  steering in one), Lattice Shield Weave, Foundry Hauler (heavy freighter); story-locked
+  Deepworks Fusion Core and Deepworks Warden (heavy warship). Fabricated items resell fully
+  depreciated (25%), and blueprint credit costs are kept above that, so fabrication is not a money
+  exploit.
+- Story: Varga Claims 5 (The Pattern Books, offered on landing at a player station with a
+  Fabrication Bay: alloy and lattice to Hermes; unlocks Core Forge and the fusion core blueprint)
+  and Varga Claims 6 (The Ship That Did Not Come: fusion cores to New Greenland; unlocks the
+  Warden).
+- Industry panel: new **Fabrication** view (after the facilities view). Left/Right (or the arrows
+  at the top right) switch between all places the player has facilities; building, expanding,
+  auto-sell and ordering work from anywhere, moving goods in or out only where the player is
+  landed. Stations can only be founded in person. In flight, **O** opens the panel on its own.
+- Dev menu: "Stock this warehouse with produced-only goods" (150 t of each mod material) and
+  "Unlock all Expanded story content".
+- Art workflow: every new image is a placeholder copy of a stock image in an `expanded` folder
+  under `images/` (credited in `copyright`). `docs/expanded/art/manifest.json` lists each image
+  with a prompt and style references; `utils/expanded/make_art_pack.py` builds `art-pack.zip`,
+  which the playtest workflow attaches to the release. Replacing a PNG with the same name and size
+  is all it takes to use new art.
+- Tests: unit tests for blueprints, ordering, material sources, queueing and saving; integration
+  tests for ordering an outfit at a station and ordering a ship from flight.
+
 ## Roadmap (revise as we learn)
 
 - Economic impact beyond auto-sell: visible NPC haulers for freight routes; facilities affect
   planet supply.
 - Station visuals and growth: sprite changes as a station gains modules; defense.
 - Quality of life: rename holdings, industry tab in Player Info, balance pass on prices.
+- Home base (parked by the user for now): station services (dock, shipyard, trade post with
+  player-set prices), and a mobile carrier with a warehouse and fabrication bay.

@@ -56,6 +56,11 @@ public:
 	// Whether building this facility founds a new space station in the system,
 	// instead of building on the planet the player is on.
 	bool IsStation() const;
+	// Whether this facility can fabricate items from blueprints. Each unit works
+	// on one order at a time.
+	bool IsFabricator() const;
+	// Outfitters that building this facility adds to its planet.
+	const std::vector<std::string> &Outfitters() const;
 
 	// Check whether this facility can be built on a planet, given its true name,
 	// attributes, and whether it is inhabited: either the planet is listed by name,
@@ -79,6 +84,8 @@ private:
 	int storage = 0;
 	int warehouse = 0;
 	bool isStation = false;
+	bool isFabricator = false;
+	std::vector<std::string> outfitters;
 	std::set<std::string> planets;
 	std::set<std::string> attributes;
 	bool anyUninhabited = false;

@@ -21,7 +21,10 @@
 # 	"expanded: crystal bore"       unlocks the Crystal Bore (Pressure Crystals)
 # 	"expanded: isotope separator"  unlocks the Isotope Separator (Refined Isotopes)
 # 	"expanded: varga deep bore"    unlocks the Varga Deep Bore
-# 	"expanded: varga charter"      Varga's unfiled station charter, for a later story
+# 	"expanded: varga charter"      Varga's unfiled station charter (unlocks the Crystal Refinery)
+# 	"expanded: core forge"         unlocks the Core Forge (Fusion Cores)
+# 	"expanded: blueprint fusion core"  unlocks the Deepworks Fusion Core blueprint
+# 	"expanded: blueprint warden"   unlocks the Deepworks Warden blueprint
 
 
 
@@ -183,6 +186,82 @@ mission "Varga Claims 4"
 			`	"Ship not coming. Taking the family south, to the cold place nobody wants. If anyone finds this, the seams on 2291 run east."`
 			`	Edda closes the notebook. "Varga meant to build stations above their best claims and process the crystals in orbit. The war ended them before they ever filed the charter. The claims lapsed six hundred years ago," she says, "but as far as I can tell, the charter never did, because nobody ever submitted it." She slides a copy across the table to you. "I think Jonas would rather it went to someone who drills."`
 			`	Petrosyan has left you the survey array, wrapped in a moving blanket, and the plans for a deep bore built to Varga's last design. There is a note taped to the blanket: "Try not to open this either."`
+
+
+
+mission "Varga Claims 5"
+	name "The Pattern Books"
+	description "Bring 20 tons of zero-g alloy and 20 tons of lattice crystal to Dr. Arsen Petrosyan on <destination>, so he can test a Varga Deepworks fabrication pattern."
+	landing
+	source
+		attributes "player station"
+	destination "Hermes"
+	to offer
+		has "Varga Claims 4: done"
+		"facility: Fabrication Bay" > 0
+	to complete
+		"commodity: Zero-G Alloy" >= 20
+		"commodity: Lattice Crystal" >= 20
+	on offer
+		conversation
+			`The cargo office on your station has printed out a message for you, because the cargo office prints out everything. It is from Dr. Petrosyan, and it is three pages long.`
+			`	"Captain, when Varga Deepworks went under, their creditors sold off everything that wasn't nailed down, and then the nails. Their design library was sold by the ton, as scrap paper, to the engineering school here on Hermes. It has been sitting in a sub-basement for six hundred years in boxes labeled MISC. INDUSTRIAL, TURF WARS ERA. A graduate student found it while looking for somewhere quiet to sleep.`
+			`	"They're pattern books. Fabrication patterns for everything Varga meant to build once their stations were running. Most of them call for two materials nobody has made in centuries: an alloy that has to be cast in free fall, and a crystal lattice that has to be grown somewhere nothing ever shakes the ground. In other words, a station and an outpost. I am told you have both.`
+			`	"There's a pattern here for a fusion core that I would very much like to try. Bring me twenty tons of each, and I'll show you what Varga was planning. Edda says to tell you she is not at all excited about this, and then she said it again, louder."`
+			choice
+				`	(Agree to bring the materials.)`
+					accept
+				`	(Not right now.)`
+					defer
+	on visit
+		dialog `Dr. Petrosyan's lab now has a stack of moldy boxes in one corner and a dehumidifier running flat out. You have not brought enough materials yet. He needs twenty tons of zero-g alloy, from an Alloy Kiln on a station, and twenty tons of lattice crystal, from a Lattice Vat on an uninhabited world.`
+	on complete
+		commodity "Zero-G Alloy" -20
+		commodity "Lattice Crystal" -20
+		payment 200000
+		set "expanded: core forge"
+		set "expanded: blueprint fusion core"
+		log `Brought zero-g alloy and lattice crystal to Dr. Petrosyan on Hermes. Varga Deepworks' pattern books turned up in a university sub-basement. He built a fusion core from one of them and gave me the patterns for a core forge and a ship generator built around the cores.`
+		conversation
+			`It takes Dr. Petrosyan nine days to build the core, and he spends most of them in the lab. On the tenth day he calls you in. On the bench is a cylinder about the size of a coffee can, with a dull gray shell and a Varga part number stamped into the end.`
+			`	"Watch," he says, and connects it to a load bank meant for a small starship. The needles go up and stay up. He lets it run for an hour, then unplugs it and puts his bare hand on the casing. "Warm," he says. "Not hot. Warm."`
+			`	He pulls one of the old pattern books over and opens it to a page marked with a strip of paper. "This is the forge pattern, for making the cores. It wants your alloy and Edda's isotopes, and it wants to be in orbit. And this," he turns a few pages, "is a generator for a ship, built around two or three of them. Varga meant to put one in every hull they built." He pushes both across the bench to you. "Your fabrication bay should be able to manage it, once you have the cores."`
+			`	As you leave, you notice that he has kept the test core on his desk, next to a photo of his family, and is using it to keep his tea warm.`
+
+
+mission "Varga Claims 6"
+	name "The Ship That Did Not Come"
+	description "Bring 10 tons of fusion cores to Edda Lund on <destination>."
+	landing
+	source "Hermes"
+	destination "New Greenland"
+	to offer
+		has "Varga Claims 5: done"
+	to complete
+		"commodity: Fusion Cores" >= 10
+	on offer
+		conversation
+			`Dr. Petrosyan catches you in the spaceport, holding one of the pattern books against his chest as if it might try to get away. "The last book," he says. "I read it last night. It isn't patterns. It's a ship."`
+			`	He opens it on a cafe table. The drawings show a heavy hull with a long, broad spine, four forward guns, and cargo bays fitted out as living space. Across the top of the first page, in block capitals, someone has written WARDEN CLASS - CLAIMS ESCORT.`
+			`	"They were going to send these out to the claims," he says. "To bring the workers home, or to guard them until the stations were up. The books are dated three weeks before the war ended." He closes the book. "I sent Edda the first page. She hasn't answered."`
+			`	A day later, she does. The message is short, for Edda. "Captain. The drawings need fusion cores to finish; Arsen says the mounts cannot be laid out without measuring real ones. Please bring me ten tons. I would like to see this one through. E."`
+			choice
+				`	(Agree to bring the cores.)`
+					accept
+				`	(Not right now.)`
+					defer
+	on visit
+		dialog `Edda is waiting at her corner table, with the Warden drawings spread out in front of her and a cup of coffee that has gone cold. You have not brought enough fusion cores yet. She needs ten tons, which only a Core Forge on one of your stations can make.`
+	on complete
+		commodity "Fusion Cores" -10
+		payment 300000
+		set "expanded: blueprint warden"
+		log `Brought fusion cores to Edda Lund on New Greenland, so she and Dr. Petrosyan could finish the plans for the Warden, the escort ship Varga Deepworks meant to send to its stranded workers. She gave me the finished blueprint.`
+		conversation
+			`Edda and Dr. Petrosyan spend two weeks in the back room of the historical society with the cores, a set of calipers, and a drafting table that someone has carried down from the attic. When they are done, Edda brings the finished plans to the cafe herself. They are rolled up and tied with a piece of string.`
+			`	"Every family on this planet has a story about the ship that did not come," she says. "My grandmother told it to me. Her grandmother told it to her. Jonas waited on a claim for a year, and then he gave up, and he brought everyone here, where it was cold and nobody would come looking." She puts the plans on the table between you. "It was going to come. It was drawn and planned and paid for. They just ran out of time."`
+			`	She unties the string and unrolls the first sheet. In the corner, under the Varga title block, she has added a line in her own small, careful handwriting: Built at last, for the Lund family and all the others.`
+			`	"I would like you to build it," she says. "I would like you to fly it to New Greenland, so that people here can see it. After that, it is yours." She rolls the plans back up and ties the string. "Do not let Arsen name it. He wants to call it the Load-Bearing."`
 
 
 
