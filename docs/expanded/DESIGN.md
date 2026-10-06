@@ -216,8 +216,10 @@ Goal: give stations and outposts something only they can make, X4 style: build t
   landed. Stations can only be founded in person. In flight, **O** opens the panel on its own.
 - Dev menu: "Stock this warehouse with produced-only goods" (150 t of each mod material) and
   "Unlock all Expanded story content".
-- Art workflow: every new image is a placeholder copy of a stock image in an `expanded` folder
-  under `images/` (credited in `copyright`). `docs/expanded/art/manifest.json` lists each image
+- Art workflow: every new image lives in an `expanded` folder under `images/` (credited in
+  `copyright`). The first set was made by the user with an image generator (magenta backgrounds,
+  JPG); Claude keyed out the background, resized to the stock sizes, and moved the ship hardpoints
+  to match. `docs/expanded/art/manifest.json` lists each image
   with a prompt and style references; `utils/expanded/make_art_pack.py` builds `art-pack.zip`,
   which the playtest workflow attaches to the release. Replacing a PNG with the same name and size
   is all it takes to use new art.

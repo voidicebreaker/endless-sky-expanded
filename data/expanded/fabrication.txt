@@ -25,9 +25,8 @@
 # Fabricated items are resold at a fully depreciated value, like gifts, so the
 # credit cost of each blueprint is kept above a quarter of the item's value.
 #
-# Art: every image here starts as a copy of a stock image, in an "expanded"
-# folder. To use new art, overwrite the file with the same name and size. See
-# docs/expanded/art/README.md.
+# Art: every image is in an "expanded" folder under images/. To use new art,
+# overwrite the file with the same name and size. See docs/expanded/art/README.md.
 
 
 
@@ -174,15 +173,15 @@ ship "Foundry Hauler"
 		"X3700 Ion Thruster"
 		"Hyperdrive"
 
-	engine -22 198
-	engine 22 198
-	gun -20 -175
-	gun 20 -175
-	turret -12 -155 "Laser Turret"
-	turret 12 -155 "Heavy Anti-Missile Turret"
-	turret 0 5 "Laser Turret"
-	turret -30 175 "Heavy Anti-Missile Turret"
-	turret 30 175 "Laser Turret"
+	engine -21 199
+	engine 23 199
+	gun -32 -162
+	gun 32 -162
+	turret 0 -116 "Laser Turret"
+	turret 0 -67 "Heavy Anti-Missile Turret"
+	turret 0 27 "Laser Turret"
+	turret 0 77 "Heavy Anti-Missile Turret"
+	turret 0 124 "Laser Turret"
 	leak "leak" 40 50
 	leak "flame" 30 80
 	leak "big leak" 50 30
@@ -233,16 +232,18 @@ ship "Deepworks Warden"
 		"Foundry Ion Drive" 2
 		"Hyperdrive"
 
-	engine -16.5 143
-	engine 16.5 143
-	gun -16 -86.5 "Lattice Lance"
-	gun 16 -86.5 "Lattice Lance"
-	gun -19 -76.5 "Lattice Lance"
-	gun 19 -76.5 "Lattice Lance"
-	turret -16 -29 "Heavy Anti-Missile Turret"
-	turret 16 -29 "Quad Blaster Turret"
-	turret -50 39.5 "Quad Blaster Turret"
-	turret 50 39.5 "Quad Blaster Turret"
+	engine -9 137
+	engine 9 137
+	engine -47 127
+	engine 47 127
+	gun -5 -140 "Lattice Lance"
+	gun 5 -140 "Lattice Lance"
+	gun -17 -117 "Lattice Lance"
+	gun 17 -117 "Lattice Lance"
+	turret -16 -18 "Heavy Anti-Missile Turret"
+	turret 16 -18 "Quad Blaster Turret"
+	turret -46 42 "Quad Blaster Turret"
+	turret 46 42 "Quad Blaster Turret"
 	leak "leak" 30 50
 	leak "flame" 50 80
 	leak "big leak" 60 30

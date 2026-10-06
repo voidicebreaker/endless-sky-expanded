@@ -1,7 +1,7 @@
 # Art pack for Endless Sky: Expanded
 
-The new outfits and ships in this mod borrow stock images from the game for now.
-This pack has everything needed to make proper ones with an image generator.
+This pack has everything needed to make or redo the mod's outfit and ship images
+with an image generator.
 
 ## Where to get it
 
@@ -14,7 +14,7 @@ One folder per image. Each folder has:
 
 - `prompt.txt` - the text to give the generator, the exact size, and where the
   finished image goes.
-- `reference.png` - the stock image the mod uses now. For ships, the new image
+- `reference.png` - the image the mod uses now. For ships, the new image
   should have the same outline and size, because the engines and guns are placed
   to match it.
 - `style-1.png`, `style-2.png`, ... - stock images to match the look of.
@@ -23,16 +23,12 @@ One folder per image. Each folder has:
 
 1. Open a folder and give the generator the text from `prompt.txt`, along with
    `reference.png` and the `style` images.
-2. Make sure the result has a transparent background and exactly the size given
-   in `prompt.txt`. Most image editors can resize and remove a background.
-3. Name the file as `prompt.txt` says (for example `lattice lance.png`).
-4. On GitHub, open the folder named in `prompt.txt` (for example
-   `images/outfit/expanded`), choose "Add file", then "Upload files", drop the
-   image in, and commit it to the development branch. It replaces the old one.
-5. The next playtest build will use it. Nothing else needs to change.
-
-If a ship comes out with a different shape or size, upload it anyway and ask
-Claude to move the engines and guns to match.
+2. The easy way: collect the results (any size, JPG is fine, a plain bright pink
+   or green background is fine) into a zip and give it to Claude, who will remove
+   the background, resize them, and fit the ships' guns and engines to the new art.
+3. The manual way: make the background transparent, resize to exactly the size in
+   `prompt.txt`, name the file as `prompt.txt` says, and upload it on GitHub to
+   the folder named there ("Add file", then "Upload files"), replacing the old one.
 
 ## For whoever maintains the mod
 

@@ -4106,24 +4106,12 @@ Comment: Taken from https://commons.wikimedia.org/wiki/File:Mug_close_to_the_Kul
 
 Files:
  images/outfit/expanded/*
-Copyright: Becca Tommaso (tommasobecca03@gmail.com)
+ images/ship/expanded/*
+ images/thumbnail/expanded/*
+Copyright: Endless Sky Expanded contributors
 License: CC-BY-SA-4.0
- Placeholder copies of stock outfit images for Endless Sky: Expanded, to be
- replaced with new art. See docs/expanded/art/README.md.
-
-Files:
- images/ship/expanded/foundry?hauler*
- images/thumbnail/expanded/foundry?hauler*
-Copyright: Lia Gerty (https://github.com/ravenshining)
-License: CC-BY-SA-4.0
- Placeholder copies of the Bulk Freighter images for Endless Sky: Expanded.
-
-Files:
- images/ship/expanded/deepworks?warden*
- images/thumbnail/expanded/deepworks?warden*
-Copyright: Michael Zahniser <mzahniser@gmail.com>
-License: CC-BY-SA-4.0
- Placeholder copies of the Falcon images for Endless Sky: Expanded.
+ Made with an AI image generator for Endless Sky: Expanded, using stock Endless
+ Sky images as style references.
 
 License: GPL-3+
  This program is free software: you can redistribute it and/or modify
