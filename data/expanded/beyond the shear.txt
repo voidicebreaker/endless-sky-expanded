@@ -1,0 +1,272 @@
+# Copyright (c) 2026 by Endless Sky Expanded contributors
+#
+# Endless Sky is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later version.
+#
+# Endless Sky is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+
+# The region beyond the shear: seven systems past Suhail that no hyperspace
+# route reaches. Only the player's carrier can get there, with a fold jump from
+# Suhail to Threshold (see PlayerInfo.cpp). Nobody lives here any more. The
+# worlds have no spaceports, but the player can land to build facilities:
+# 	"expanded ruin"   worlds can host a Salvage Rig (Relic Fragments)
+# 	"expanded shear"  worlds can host a Shear Harvester (Shear Glass)
+# and any uninhabited world can host the usual outposts.
+
+
+
+system Threshold
+	pos -990 -560
+	government Uninhabited
+	attributes "expanded beyond the shear"
+	habitable 900
+	belt 1400
+	link Vigil
+	link Ashfall
+	asteroids "small rock" 6 2.2
+	asteroids "medium metal" 4 2.6
+	asteroids "large metal" 2 2.1
+	minables iron 4 4.2
+	object
+		sprite star/k3
+		period 10
+	object "Threshold Wreck"
+		sprite planet/station-cylinder-a0-broken
+		distance 640
+		period 250
+	object Gate
+		sprite planet/rock7
+		distance 1150
+		period 610
+
+system Vigil
+	pos -1060 -515
+	government Uninhabited
+	attributes "expanded beyond the shear"
+	habitable 1300
+	belt 1700
+	link Threshold
+	link Lantern
+	asteroids "small rock" 5 2.4
+	asteroids "medium rock" 3 2.2
+	object
+		sprite star/g5
+		period 10
+	object Vigil
+		sprite planet/desert4
+		distance 900
+		period 420
+		object "Vigil's Eye"
+			sprite planet/rock3
+			distance 190
+			period 26
+
+system Lantern
+	pos -1125 -570
+	government Uninhabited
+	attributes "expanded beyond the shear"
+	habitable 1500
+	belt 1900
+	link Vigil
+	link Ninefold
+	asteroids "small metal" 5 2.6
+	asteroids "medium metal" 3 2.4
+	minables silicon 3 3.6
+	object
+		sprite star/g0
+		period 10
+	object
+		sprite planet/gas6
+		distance 1500
+		period 890
+		object "Lantern Array"
+			sprite planet/station-accelerator-broken
+			distance 330
+			period 40
+
+system Ashfall
+	pos -1045 -640
+	government Uninhabited
+	attributes "expanded beyond the shear"
+	habitable 700
+	belt 1300
+	link Threshold
+	link Ninefold
+	link "Hollow Crown"
+	asteroids "small rock" 8 2.8
+	asteroids "large rock" 3 2.4
+	minables iron 6 5.1
+	object
+		sprite star/m3
+		period 10
+	object Ashfall
+		sprite planet/lava3
+		distance 520
+		period 170
+	object Cinder
+		sprite planet/dust2
+		distance 980
+		period 450
+
+system Ninefold
+	pos -1150 -650
+	government Uninhabited
+	attributes "expanded beyond the shear"
+	habitable 1200
+	belt 1600
+	link Lantern
+	link Ashfall
+	link "Hollow Crown"
+	asteroids "medium metal" 6 2.7
+	asteroids "large metal" 4 2.2
+	minables silver 3 3.9
+	object
+		sprite star/k5
+		period 10
+	object
+		sprite planet/gas12
+		distance 1100
+		period 640
+		object "Ninefold Yards"
+			sprite planet/station-cylinder-a0-incomplete
+			distance 300
+			period 36
+		object Ninth
+			sprite planet/ice3
+			distance 470
+			period 70
+
+system "Hollow Crown"
+	pos -1110 -725
+	government Uninhabited
+	attributes "expanded beyond the shear"
+	habitable 1100
+	belt 1500
+	link Ashfall
+	link Ninefold
+	link "Last Light"
+	asteroids "small rock" 4 2.2
+	asteroids "medium metal" 4 2.4
+	object
+		sprite star/g3
+		period 10
+	object "Crown Archive"
+		sprite planet/rock14
+		distance 820
+		period 380
+	object Ringstone
+		sprite planet/ice6
+		distance 1450
+		period 860
+
+system "Last Light"
+	pos -1185 -735
+	government Uninhabited
+	attributes "expanded beyond the shear"
+	habitable 400
+	belt 1000
+	link "Hollow Crown"
+	asteroids "small rock" 3 1.8
+	object
+		sprite star/m-dwarf
+		period 10
+	object Vesper
+		sprite planet/station-depot-a2
+		distance 380
+		period 110
+
+
+
+planet "Threshold Wreck"
+	attributes uninhabited station "expanded ruin"
+	landscape land/station22
+	description `A broken cylinder station, half a kilometer long, tumbling slowly end over end. Something cut it open along one side a very long time ago. The edges of the cut are smooth, and the air inside has long since leaked away into the dark.`
+	description `	The corridors are wide and low, and the doors are a little too short for a comfortable human. Every room has the same small symbol painted beside the door, in the same careful hand.`
+
+planet Gate
+	attributes uninhabited "expanded shear"
+	landscape land/lava7-sfiera
+	description `The world closest to the shear has been scarred by it. Its surface rock has fused into sheets of dark glass that ring faintly when the wind blows, and the wind always blows. Your instruments give slightly different readings every time you look at them.`
+
+planet Vigil
+	attributes uninhabited "expanded ruin"
+	landscape land/desert11
+	description `A dry world under a pale sun, with the ruins of a city along what used to be a coastline. The buildings are low and round, and half buried in sand. Machines still move between them at night, sweeping the streets, and stop to wait whenever a ship lands.`
+
+planet "Vigil's Eye"
+	attributes uninhabited
+	landscape land/canyon11
+	description `A small, airless moon, cratered and grey. Someone has carved a single word into the floor of the largest crater, in letters a kilometer high. Nobody can read it.`
+
+planet "Lantern Array"
+	attributes uninhabited station "expanded ruin"
+	landscape land/station41
+	description `A ring of collecting dishes in orbit around a gas giant, most of them shattered. The control rooms are full of screens that still light up when you walk past, showing the same star chart: this region, with the shear drawn around it in a thick, confident line.`
+
+planet Ashfall
+	attributes uninhabited mining "expanded shear"
+	landscape land/lava2
+	description `A hot, heavy world close to its red sun, its plains covered in ash and fused glass. There are no ruins here, only mine shafts, sealed with plugs of something that has not corroded in all the time since.`
+
+planet Cinder
+	attributes uninhabited mining
+	landscape land/canyon15
+	description `A dusty world with thin, unbreathable air and rich ore just under the surface. The builders seem to have left it alone, which your survey team finds suspicious and your mining crews find convenient.`
+
+planet "Ninefold Yards"
+	attributes uninhabited station "expanded ruin"
+	landscape land/station33
+	description `A shipyard, abandoned in the middle of its work. Hulls hang in their cradles with their plating half fitted, and tools float where they were let go. The yard's computers are still waiting for a shift that has not arrived.`
+
+planet Ninth
+	attributes uninhabited
+	landscape land/snow19
+	description `The ninth moon of the gas giant, and the only one big enough to land on. Its ice is laced with dark streaks that turn out, on closer study, to be very old soot.`
+
+planet "Crown Archive"
+	attributes uninhabited "expanded ruin"
+	landscape land/canyon16
+	description `A rocky world with a single structure on it: a wide, shallow dome set into the floor of a valley, built to last. Its doors open for you without being asked. Inside are corridors of shelves, and on the shelves are glass plates covered in very neat writing.`
+
+planet Ringstone
+	attributes uninhabited
+	landscape land/snow27
+	description `An ice world with a thin ring of its own, made of rubble from a moon that is no longer there. The ice is clean and deep, and the builders never touched it.`
+
+planet Vesper
+	attributes uninhabited station "expanded ruin"
+	landscape land/station47
+	description `The last station that still works. Its lights are on, its air is warm, and its docking clamps close gently around your ship. Somewhere inside, a recorded voice is speaking calmly in a language nobody alive can understand.`
+
+
+
+# Research events.
+
+event "expanded: shear mapped"
+	visit Threshold
+	visit Vigil
+	visit Lantern
+	visit Ashfall
+	visit Ninefold
+	visit "Hollow Crown"
+	visit "Last Light"
+
+# Scavengers follow the carrier's fold wake across the shear.
+event "expanded: shear-runners"
+	system Threshold
+		add fleet "Small Southern Pirates" 9000
+	system Ashfall
+		add fleet "Small Southern Pirates" 7000
+		add fleet "Large Southern Pirates" 16000
+	system Ninefold
+		add fleet "Small Southern Pirates" 7000
+	system "Hollow Crown"
+		add fleet "Large Southern Pirates" 14000
+	system Vigil
+		add fleet "Small Southern Pirates" 10000

@@ -19,6 +19,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "DataNode.h"
 #include "DataWriter.h"
 #include "Facility.h"
+#include "Research.h"
 #include "Set.h"
 
 #include <algorithm>
@@ -99,7 +100,8 @@ void Industry::Holding::AddReport(const string &date, const string &text)
 
 
 
-void Industry::Load(const DataNode &node, const Set<Facility> &facilities, const Set<Blueprint> *blueprints)
+void Industry::Load(const DataNode &node, const Set<Facility> &facilities, const Set<Blueprint> *blueprints,
+	const Set<Research> *research)
 {
 	for(const DataNode &child : node)
 	{
@@ -108,9 +110,33 @@ void Industry::Load(const DataNode &node, const Set<Facility> &facilities, const
 		{
 			const Blueprint *blueprint = blueprints ? blueprints->Find(child.Token(1)) : nullptr;
 			if(blueprint && blueprint->IsDefined())
-				orders.push_back({blueprint, child.Token(2), max(1, static_cast<int>(child.Value(3)))});
+				orders.push_back({blueprint, child.Token(2), max(1, static_cast<int>(child.Value(3))),
+					child.Size() >= 5 ? child.Token(4) : string()});
 			else
 				child.PrintTrace("Skipping order for undefined blueprint:");
+			continue;
+		}
+		if((key == "research" || key == "researched") && child.Size() >= 2)
+		{
+			const Research *project = research ? research->Find(child.Token(1)) : nullptr;
+			if(!project || !project->IsDefined())
+				child.PrintTrace("Skipping undefined research project:");
+			else if(key == "researched")
+				completedResearch.insert(project);
+			else
+			{
+				researchProgress[project] = child.Size() >= 3 ? max(0, static_cast<int>(child.Value(2))) : 0;
+				for(const DataNode &grand : child)
+					if(grand.Token(0) == "active")
+						activeResearch = project;
+			}
+			continue;
+		}
+		if(key == "carrier" && child.Size() >= 3)
+		{
+			carrier.name = child.Token(1);
+			carrier.system = child.Token(2);
+			carrier.daysLeft = child.Size() >= 4 ? max(0, static_cast<int>(child.Value(3))) : 0;
 			continue;
 		}
 		if(key == "warehouse" && child.Size() >= 2)
@@ -201,7 +227,8 @@ void Industry::Save(DataWriter &out) const
 	for(const auto &[planet, warehouse] : warehouses)
 		for(const auto &[commodity, tons] : warehouse)
 			hasWarehouseStock |= (tons > 0);
-	if(holdings.empty() && routes.empty() && !hasWarehouseStock && saturation.empty() && orders.empty())
+	if(holdings.empty() && routes.empty() && !hasWarehouseStock && saturation.empty() && orders.empty()
+			&& researchProgress.empty() && completedResearch.empty() && carrier.name.empty())
 		return;
 
 	out.Write("industry");
@@ -244,7 +271,31 @@ void Industry::Save(DataWriter &out) const
 		for(const auto &[market, value] : saturation)
 			out.Write("saturation", market.first, market.second, round(value * 10.) / 10.);
 		for(const Order &order : orders)
-			out.Write("order", order.blueprint->TrueName(), order.planet, order.daysLeft);
+		{
+			if(order.name.empty())
+				out.Write("order", order.blueprint->TrueName(), order.planet, order.daysLeft);
+			else
+				out.Write("order", order.blueprint->TrueName(), order.planet, order.daysLeft, order.name);
+		}
+		for(const Research *project : completedResearch)
+			out.Write("researched", project->TrueName());
+		for(const auto &[project, progress] : researchProgress)
+		{
+			out.Write("research", project->TrueName(), progress);
+			if(project == activeResearch)
+			{
+				out.BeginChild();
+				out.Write("active");
+				out.EndChild();
+			}
+		}
+		if(!carrier.name.empty())
+		{
+			if(carrier.daysLeft)
+				out.Write("carrier", carrier.name, carrier.system, carrier.daysLeft);
+			else
+				out.Write("carrier", carrier.name, carrier.system);
+		}
 		for(const Route &route : routes)
 		{
 			out.Write("route", route.commodity);
@@ -327,8 +378,16 @@ Industry::DayReport Industry::AdvanceDay(int64_t credits, World *world)
 
 	DayReport report;
 	for(Holding &holding : holdings)
-		Produce(holding, credits, report);
+		Produce(holding, credits, report, world ? PirateRisk(holding.planet, world->Risk(holding.planet)) : 0.,
+			world);
 	Fabricate(report);
+
+	// Research labs work on the active project.
+	report.finishedResearch = AddResearch(report.research);
+
+	// The carrier moves on.
+	if(carrier.daysLeft > 0 && !--carrier.daysLeft)
+		report.carrierArrived = true;
 
 	if(world)
 	{
@@ -450,9 +509,9 @@ const map<string, int> &Industry::Warehouse(const string &planet) const
 
 
 
-int Industry::Store(const string &planet, const string &commodity, int tons)
+int Industry::Store(const string &planet, const string &commodity, int tons, bool ignoreCapacity)
 {
-	tons = max(0, min(tons, WarehouseCapacity(planet) - WarehouseUsed(planet)));
+	tons = max(0, ignoreCapacity ? tons : min(tons, WarehouseCapacity(planet) - WarehouseUsed(planet)));
 	if(tons)
 		warehouses[planet][commodity] += tons;
 	return tons;
@@ -525,7 +584,7 @@ int Industry::Supply(Holding &holding, const string &commodity, int available)
 
 
 
-void Industry::Produce(Holding &holding, int64_t &credits, DayReport &report)
+void Industry::Produce(Holding &holding, int64_t &credits, DayReport &report, double risk, const World *world)
 {
 	const Facility &type = *holding.type;
 	const int64_t upkeep = type.Upkeep() * holding.count;
@@ -537,6 +596,23 @@ void Industry::Produce(Holding &holding, int64_t &credits, DayReport &report)
 	credits -= upkeep;
 	report.upkeep += upkeep;
 
+	// A research lab uses its inputs to make research points.
+	if(type.Outputs().empty() && type.Research())
+	{
+		int runs = holding.count;
+		for(const auto &[commodity, amount] : type.Inputs())
+			runs = min(runs, holding.Stock(commodity) / amount);
+		if(runs <= 0)
+		{
+			holding.status = Status::NO_INPUTS;
+			return;
+		}
+		holding.status = Status::RUNNING;
+		for(const auto &[commodity, amount] : type.Inputs())
+			holding.stock[commodity] -= amount * runs;
+		report.research += type.Research() * runs;
+		return;
+	}
 	// A facility with nothing to make (such as a warehouse) is always running.
 	if(type.Outputs().empty())
 	{
@@ -566,7 +642,20 @@ void Industry::Produce(Holding &holding, int64_t &credits, DayReport &report)
 		for(const auto &[commodity, amount] : type.Outputs())
 		{
 			int &stored = holding.stock[commodity];
+			const int before = stored;
 			stored = min(capacity, stored + amount * runs);
+			// Pirates take their share of what was made. Fractions of a ton add
+			// up over the days, so that small losses are not rounded away.
+			if(risk <= 0.)
+				continue;
+			double &carry = holding.pirateCarry[commodity];
+			carry += (stored - before) * risk;
+			const int lost = min(stored, static_cast<int>(carry));
+			carry -= lost;
+			stored -= lost;
+			report.pirateTons += lost;
+			if(world)
+				report.pirateValue += static_cast<int64_t>(lost) * world->Value(commodity);
 		}
 	}
 }
@@ -686,6 +775,144 @@ int64_t Industry::Sell(const string &planet, const string &commodity, int tons, 
 
 
 
+bool Industry::Take(const string &planet, const string &commodity, int tons)
+{
+	if(Available(planet, commodity) < tons)
+		return false;
+	for(Holding &holding : holdings)
+		if(tons && holding.planet == planet && holding.Makes(commodity))
+			tons -= Collect(holding, commodity, tons);
+	if(tons)
+		Retrieve(planet, commodity, tons);
+	return true;
+}
+
+
+
+const Research *Industry::ActiveResearch() const
+{
+	return activeResearch;
+}
+
+
+
+bool Industry::IsResearched(const Research &project) const
+{
+	return completedResearch.contains(&project);
+}
+
+
+
+const set<const Research *> &Industry::CompletedResearch() const
+{
+	return completedResearch;
+}
+
+
+
+bool Industry::HasStarted(const Research &project) const
+{
+	return researchProgress.contains(&project);
+}
+
+
+
+int Industry::Progress(const Research &project) const
+{
+	auto it = researchProgress.find(&project);
+	return it == researchProgress.end() ? 0 : it->second;
+}
+
+
+
+bool Industry::StartResearch(const Research &project, const string &planet)
+{
+	if(IsResearched(project))
+		return false;
+	if(!HasStarted(project))
+	{
+		for(const auto &[commodity, tons] : project.Materials())
+			if(Available(planet, commodity) < tons)
+				return false;
+		for(const auto &[commodity, tons] : project.Materials())
+			Take(planet, commodity, tons);
+		researchProgress[&project] = 0;
+	}
+	activeResearch = &project;
+	return true;
+}
+
+
+
+const Research *Industry::AddResearch(int points)
+{
+	if(!activeResearch || points <= 0)
+		return nullptr;
+	int &progress = researchProgress[activeResearch];
+	progress += points;
+	if(progress < activeResearch->Cost())
+		return nullptr;
+	const Research *finished = activeResearch;
+	completedResearch.insert(finished);
+	researchProgress.erase(finished);
+	activeResearch = nullptr;
+	return finished;
+}
+
+
+
+bool Industry::HasFoldRelay() const
+{
+	for(const Research *project : completedResearch)
+		if(project->IsFoldRelay())
+			return true;
+	return false;
+}
+
+
+
+double Industry::PirateRisk(const string &planet, double baseRisk) const
+{
+	double risk = baseRisk * ResearchRiskMultiplier();
+	for(const Holding &holding : holdings)
+		if(holding.planet == planet && holding.type->Defense())
+			risk *= pow(1. - holding.type->Defense() / 100., holding.count);
+	return risk;
+}
+
+
+
+double Industry::ResearchRiskMultiplier() const
+{
+	double multiplier = 1.;
+	for(const Research *project : completedResearch)
+		multiplier *= 1. - project->RiskReduction() / 100.;
+	return multiplier;
+}
+
+
+
+bool Industry::HasCarrier() const
+{
+	return !carrier.name.empty();
+}
+
+
+
+const Industry::Carrier &Industry::GetCarrier() const
+{
+	return carrier;
+}
+
+
+
+Industry::Carrier &Industry::GetCarrier()
+{
+	return carrier;
+}
+
+
+
 int Industry::FabricationBays(const string &planet) const
 {
 	int bays = 0;
@@ -732,22 +959,14 @@ bool Industry::HasMaterials(const Blueprint &blueprint, const string &planet) co
 
 
 
-bool Industry::PlaceOrder(const Blueprint &blueprint, const string &planet)
+bool Industry::PlaceOrder(const Blueprint &blueprint, const string &planet, const string &name)
 {
 	if(!blueprint.IsDefined() || !FabricationBays(planet) || !HasMaterials(blueprint, planet))
 		return false;
 
-	// Use the goods the facilities have made first, then the warehouse.
 	for(const auto &[commodity, tons] : blueprint.Materials())
-	{
-		int needed = tons;
-		for(Holding &holding : holdings)
-			if(needed && holding.planet == planet && holding.Makes(commodity))
-				needed -= Collect(holding, commodity, needed);
-		if(needed)
-			Retrieve(planet, commodity, needed);
-	}
-	orders.push_back({&blueprint, planet, blueprint.Days()});
+		Take(planet, commodity, tons);
+	orders.push_back({&blueprint, planet, blueprint.Days(), name});
 	return true;
 }
 

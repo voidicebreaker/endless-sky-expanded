@@ -314,3 +314,94 @@ blueprint "Deepworks Warden"
 	material "Fusion Cores" 40
 	days 30
 	requires "expanded: blueprint warden"
+
+
+
+# Beyond the shear: designs rebuilt from the builders' salvage.
+
+outfit "Relic Ward"
+	category "Systems"
+	series "Shields"
+	index 01042
+	cost 900000
+	thumbnail "outfit/expanded/relic ward"
+	"mass" 24
+	"outfit space" -24
+	"shield generation" 1.2
+	"shield energy" .8
+	description "A shield emitter rebuilt from a machine found in the ruins beyond the shear. Nobody is entirely sure how it works. It is small, it is efficient, and when it is running the hull feels warm to the touch, even in vacuum."
+
+outfit "Shear Lance"
+	category "Guns"
+	series "Guns"
+	index 01062
+	cost 700000
+	thumbnail "outfit/expanded/shear lance"
+	"mass" 18
+	"outfit space" -18
+	"weapon capacity" -18
+	"gun ports" -1
+	weapon
+		sprite "projectile/heavy laser"
+			"frame rate" 1
+		sound "heavy laser"
+		"hit effect" "heavy laser impact"
+		"inaccuracy" .1
+		"velocity" 600
+		"lifetime" 1
+		"reload" 1
+		"firing energy" 1.8
+		"firing heat" 3.5
+		"shield damage" 2.8
+		"hull damage" 3.2
+	description "A beam weapon focused through a lens of shear glass. The glass bends the beam in a way that keeps it tight over a remarkable distance. The builders used something like it to cut asteroids. You have found other uses."
+
+outfit "Remnant Reactor"
+	category "Power"
+	series "Generators"
+	index 01122
+	cost 4000000
+	thumbnail "outfit/expanded/remnant reactor"
+	"mass" 50
+	"outfit space" -50
+	"energy generation" 12
+	"heat generation" 12
+	description "The reactor from the station at Last Light, copied as closely as your engineers dared. The original ran for longer than human civilization has existed, for nobody, without once needing repair. This one is newer, and so far it seems to be just as stubborn."
+
+
+
+blueprint "Relic Ward"
+	outfit "Relic Ward"
+	cost 300000
+	material "Relic Fragments" 25
+	material "Shear Glass" 10
+	material "Zero-G Alloy" 10
+	days 8
+	requires "research: Relic Reconstruction"
+
+blueprint "Shear Lance"
+	outfit "Shear Lance"
+	cost 250000
+	material "Shear Glass" 20
+	material "Relic Fragments" 10
+	material "Lattice Crystal" 10
+	days 7
+	requires "research: Relic Reconstruction"
+
+blueprint "Remnant Reactor"
+	outfit "Remnant Reactor"
+	cost 1200000
+	material "Relic Fragments" 40
+	material "Shear Glass" 20
+	material "Zero-G Alloy" 30
+	days 14
+	requires "expanded: last light"
+
+blueprint "Fold Carrier"
+	carrier "Fold Carrier"
+	cost 10000000
+	material "Zero-G Alloy" 400
+	material "Lattice Crystal" 150
+	material "Fold Charges" 40
+	days 40
+	requires "research: Carrier Keel"

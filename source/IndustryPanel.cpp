@@ -37,6 +37,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "Point.h"
 #include "Port.h"
 #include "Rectangle.h"
+#include "Research.h"
 #include "Screen.h"
 #include "Ship.h"
 #include "System.h"
@@ -213,6 +214,10 @@ void IndustryPanel::Draw()
 		DrawPlanetView();
 	else if(view == View::FABRICATION)
 		DrawFabrication();
+	else if(view == View::RESEARCH)
+		DrawResearch();
+	else if(view == View::CARRIER)
+		DrawCarrier();
 	else if(view == View::ROUTES)
 		DrawRoutes();
 	else if(view == View::FINANCES)
@@ -228,7 +233,11 @@ void IndustryPanel::Draw()
 	if(view == View::PLANET)
 		hint = "E: build  U: supply  C: collect  A: sell  Left/Right: place";
 	else if(view == View::FABRICATION)
-		hint = "E: order    Left/Right: place    Tab: freight";
+		hint = "E: order    Left/Right: place    Tab: research";
+	else if(view == View::RESEARCH)
+		hint = "E: research this    Tab: carrier";
+	else if(view == View::CARRIER)
+		hint = "E: send the carrier    Tab: freight";
 	else if(view == View::ROUTES)
 		hint = "R: new route    X: delete    -/+: tons    Tab: finances";
 	else if(view == View::FINANCES)
@@ -263,6 +272,10 @@ bool IndustryPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command,
 		if(view == View::PLANET)
 			view = View::FABRICATION;
 		else if(view == View::FABRICATION)
+			view = View::RESEARCH;
+		else if(view == View::RESEARCH)
+			view = View::CARRIER;
+		else if(view == View::CARRIER)
 			view = View::ROUTES;
 		else if(view == View::ROUTES)
 			view = View::FINANCES;
@@ -278,15 +291,24 @@ bool IndustryPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command,
 	const int step = (key == SDLK_UP ? -1 : key == SDLK_DOWN ? 1 : 0);
 	if(view == View::FINANCES)
 		return remote;
-	if(view == View::FABRICATION)
+	if(view == View::FABRICATION || view == View::RESEARCH || view == View::CARRIER)
 	{
+		int &selected = (view == View::FABRICATION) ? selectedBlueprint
+			: (view == View::RESEARCH) ? selectedProject : selectedDestination;
 		if(step)
 		{
-			selectedBlueprint = max(0, selectedBlueprint + step);
+			selected = max(0, selected + step);
 			status.clear();
 		}
 		else if(key == 'e' || key == SDLK_RETURN || key == SDLK_KP_ENTER)
-			Order();
+		{
+			if(view == View::FABRICATION)
+				Order();
+			else if(view == View::RESEARCH)
+				StartResearch();
+			else
+				SendCarrier();
+		}
 		else
 			return remote;
 		return true;
@@ -366,6 +388,9 @@ vector<const Facility *> IndustryPanel::Facilities(const PlayerInfo &player, con
 			result.push_back(&facility);
 			continue;
 		}
+		// Carriers are fabricated from a blueprint, not built.
+		if(facility.IsCarrier())
+			continue;
 		// Some facilities have to be unlocked before they can be built.
 		const string &requirement = facility.Requirement();
 		if(!requirement.empty() && player.Conditions().Get(requirement) <= 0)
@@ -497,6 +522,13 @@ void IndustryPanel::DrawPlanetView()
 		line("Makes: " + AmountsString(facility.Outputs(), count) + " per day", medium);
 	if(facility.Warehouse())
 		line("Warehouse: " + Format::MassString(facility.Warehouse() * count), medium);
+	if(facility.Research())
+		line("Research: " + to_string(facility.Research() * count) + " points per day", medium);
+	if(facility.Defense())
+		line("Cuts pirate losses here by " + to_string(facility.Defense()) + "% per unit", medium);
+	const double risk = player.PirateRisk(planet->TrueName());
+	if(!facility.Outputs().empty() && risk >= .005)
+		line("Pirates take about " + to_string(static_cast<int>(risk * 100. + .5)) + "% of output here", medium);
 
 	WrappedText text(font);
 	text.SetWrapWidth(width);
@@ -746,6 +778,13 @@ void IndustryPanel::DrawFinances()
 	entry(1, 1, "Industry tax", report.tax, true);
 	entry(1, 2, "Net result", report.Net(), false);
 	entry(1, 3, "Lost to saturation", report.saturationLoss, false);
+	entry(0, 4, "Lost to pirates", report.pirateValue, true);
+	{
+		const string label = "Research points";
+		const string value = to_string(report.research);
+		font.Draw(label, Point(middle + PAD, top + 4 * LINE), medium);
+		font.Draw(value, Point(box.Right() - PAD - font.Width(value), top + 4 * LINE), bright);
+	}
 
 	// How taxes and saturation are calculated.
 	vector<string> brackets;
@@ -760,7 +799,7 @@ void IndustryPanel::DrawFinances()
 	}
 	WrappedText text(font);
 	text.SetWrapWidth(box.Width() - 2. * PAD);
-	Point pos(box.Left() + PAD, top + 4 * LINE + 6.);
+	Point pos(box.Left() + PAD, top + 5 * LINE + 6.);
 	const double bottom = box.Bottom() - LINE;
 	auto paragraph = [&](const string &str, const Color &color)
 	{
@@ -771,6 +810,9 @@ void IndustryPanel::DrawFinances()
 		pos.Y() += text.Height();
 	};
 	paragraph("Each day's profit is taxed: " + Join(brackets) + ".", medium);
+	paragraph("In dangerous systems pirates take up to 25% of each day's output. Defense Platforms and"
+		" research cut that down; your research leaves "
+		+ to_string(static_cast<int>(100. * industry.ResearchRiskMultiplier() + .5)) + "% of it.", medium);
 	paragraph("Each ton your industry sells on a market pays price / (1 + saturation / "
 		+ to_string(static_cast<int>(Industry::MARKET_DEPTH)) + "), and adds a ton of saturation."
 		" Saturation halves every day.", medium);
@@ -1333,7 +1375,8 @@ void IndustryPanel::DrawFabrication()
 	const Ship *ship = blueprint.GetShip();
 	font.Draw(blueprint.ItemName(), pos, bright);
 	pos.Y() += LINE;
-	const string kind = outfit ? "Outfit, " + outfit->Category() : "Ship, " + ship->BaseAttributes().Category();
+	const string kind = outfit ? "Outfit, " + outfit->Category() : ship ? "Ship, " + ship->BaseAttributes().Category()
+		: string("Carrier");
 	font.Draw(kind + ". Takes " + to_string(blueprint.Days()) + (blueprint.Days() == 1 ? " day." : " days."),
 		pos, medium);
 	pos.Y() += LINE;
@@ -1350,7 +1393,8 @@ void IndustryPanel::DrawFabrication()
 
 	// The first paragraph of the item's description, if there is room.
 	const double buttonsTop = box.Bottom() - LINE - BUTTON_SIZE.Y() - 8.;
-	string description = outfit ? outfit->Description() : ship->Description();
+	string description = outfit ? outfit->Description() : ship ? ship->Description()
+		: blueprint.GetCarrier()->Description();
 	description = description.substr(0, description.find('\n'));
 	text.SetWrapWidth(width);
 	text.Wrap(description);
@@ -1393,11 +1437,294 @@ void IndustryPanel::Order()
 		status = "You need " + Format::CreditString(missing, false) + " more.";
 	else if(!industry.HasMaterials(blueprint, here))
 		status = "Not enough materials here. Have your facilities or freight routes bring them to this station.";
+	else if(blueprint.GetCarrier())
+	{
+		bool ordered = false;
+		for(const Industry::Order &order : industry.Orders())
+			ordered |= (order.blueprint->GetCarrier() != nullptr);
+		if(industry.HasCarrier() || ordered)
+			status = "You can only have one carrier.";
+		else
+		{
+			GetUI().Push(DialogPanel::RequestString(this, &IndustryPanel::OrderCarrier,
+				"What would you like to call your carrier?", player.LastName() + "'s Ark"));
+			return;
+		}
+	}
 	else if(industry.PlaceOrder(blueprint, here))
 	{
 		player.Accounts().AddCredits(-blueprint.Cost());
 		status = "Ordered: " + blueprint.ItemName() + ". " + (blueprint.GetShip()
 			? "It will be parked here when it is finished." : "It will be left in storage here when it is finished.");
+		UI::PlaySound(UI::UISound::NORMAL);
+		return;
+	}
+	UI::PlaySound(UI::UISound::FAILURE);
+}
+
+
+
+vector<const Research *> IndustryPanel::Projects() const
+{
+	vector<const Research *> result;
+	for(const auto &it : GameData::ResearchProjects())
+	{
+		const Research &project = it.second;
+		if(!project.IsDefined())
+			continue;
+		// Projects that need something other than research (such as a story
+		// mission) stay hidden until the player has it.
+		bool hidden = false;
+		for(const string &requirement : project.Requirements())
+			hidden |= (!requirement.starts_with("research: ") && player.Conditions().Get(requirement) <= 0);
+		if(!hidden)
+			result.push_back(&project);
+	}
+	// Unfinished projects first, cheapest first.
+	const Industry &industry = player.GetIndustry();
+	stable_sort(result.begin(), result.end(), [&industry](const Research *a, const Research *b)
+	{
+		if(industry.IsResearched(*a) != industry.IsResearched(*b))
+			return !industry.IsResearched(*a);
+		return a->Cost() < b->Cost();
+	});
+	return result;
+}
+
+
+
+bool IndustryPanel::CanStart(const Research &project) const
+{
+	for(const string &requirement : project.Requirements())
+		if(player.Conditions().Get(requirement) <= 0)
+			return false;
+	return true;
+}
+
+
+
+void IndustryPanel::DrawResearch()
+{
+	const Rectangle box = Box();
+	const Font &font = FontSet::Get(14);
+	const Color &faint = *GameData::Colors().Get("faint");
+	const Color &dim = *GameData::Colors().Get("dim");
+	const Color &medium = *GameData::Colors().Get("medium");
+	const Color &bright = *GameData::Colors().Get("bright");
+	const Industry &industry = player.GetIndustry();
+	const int points = industry.LastReport().research;
+
+	font.Draw("Research", box.TopLeft() + Point(PAD, 0.), bright);
+	const string rate = "Your labs: " + to_string(points) + " points a day";
+	font.Draw(rate, Point(box.Right() - PAD - font.Width(rate), box.Top()), medium);
+	const double listTop = box.Top() + LINE + 6.;
+
+	const vector<const Research *> projects = Projects();
+	if(projects.empty())
+	{
+		font.Draw("There is nothing to research yet.", Point(box.Left() + PAD, listTop), medium);
+		return;
+	}
+	selectedProject = clamp(selectedProject, 0, static_cast<int>(projects.size()) - 1);
+	const int visible = VisibleRows(box, listTop);
+	scroll = clamp(scroll, max(0, selectedProject - visible + 1), selectedProject);
+	for(int i = scroll; i < static_cast<int>(projects.size()) && i < scroll + visible; ++i)
+	{
+		const Research &project = *projects[i];
+		const Point corner(box.Left(), listTop + (i - scroll) * ROW);
+		const Rectangle row = Rectangle::FromCorner(corner, Point(LIST_WIDTH, ROW));
+		if(i == selectedProject)
+			FillShader::Fill(row, faint);
+		const bool done = industry.IsResearched(project);
+		const string label = (industry.ActiveResearch() == &project ? "> " : "") + project.TrueName();
+		font.Draw({label, {static_cast<int>(LIST_WIDTH - 2. * PAD), Truncate::BACK}},
+			corner + Point(PAD, .5 * (ROW - font.Height())),
+			i == selectedProject ? bright : (done || !CanStart(project)) ? dim : medium);
+		AddZone(row, [this, i]() { selectedProject = i; status.clear(); });
+	}
+
+	const Research &project = *projects[selectedProject];
+	const double left = box.Left() + LIST_WIDTH + PAD;
+	Point pos(left, listTop);
+	font.Draw(project.TrueName(), pos, bright);
+	pos.Y() += LINE;
+	const bool done = industry.IsResearched(project);
+	string state;
+	if(done)
+		state = "Finished.";
+	else
+	{
+		const int progress = industry.Progress(project);
+		state = to_string(progress) + " / " + to_string(project.Cost()) + " points";
+		if(industry.ActiveResearch() == &project)
+			state += points ? ", about " + Format::SimplePluralization(
+				(project.Cost() - progress + points - 1) / points, "day") + " left" : ", but your labs are idle";
+	}
+	font.Draw(state, pos, medium);
+	pos.Y() += LINE;
+	vector<string> missing;
+	for(const string &requirement : project.Requirements())
+		if(player.Conditions().Get(requirement) <= 0)
+			missing.push_back(requirement.starts_with("research: ") ? requirement.substr(10) : requirement);
+	if(!missing.empty())
+	{
+		font.Draw("Needs: " + Join(missing), pos, dim);
+		pos.Y() += LINE;
+	}
+	if(!done && !industry.HasStarted(project))
+		for(const auto &[commodity, tons] : project.Materials())
+		{
+			const int available = industry.Available(planet->TrueName(), commodity);
+			font.Draw("To start: " + commodity + " " + to_string(min(available, tons)) + " / " + to_string(tons)
+				+ " here", pos, available >= tons ? medium : dim);
+			pos.Y() += LINE;
+		}
+
+	const double buttonsTop = box.Bottom() - LINE - BUTTON_SIZE.Y() - 8.;
+	WrappedText text(font);
+	text.SetWrapWidth(box.Right() - PAD - left);
+	text.Wrap(project.Description());
+	pos.Y() += 4.;
+	if(pos.Y() + text.Height() <= buttonsTop)
+		text.Draw(pos, dim);
+
+	if(!done && industry.ActiveResearch() != &project)
+	{
+		Point corner(left, buttonsTop);
+		DrawButton(corner, "Research", CanStart(project), [this]() { StartResearch(); });
+	}
+}
+
+
+
+void IndustryPanel::StartResearch()
+{
+	const vector<const Research *> projects = Projects();
+	if(projects.empty())
+		return;
+	const Research &project = *projects[clamp(selectedProject, 0, static_cast<int>(projects.size()) - 1)];
+	Industry &industry = player.GetIndustry();
+	if(industry.IsResearched(project) || industry.ActiveResearch() == &project)
+		return;
+	if(!CanStart(project))
+		status = "That project needs other research first.";
+	else if(industry.StartResearch(project, planet->TrueName()))
+	{
+		status = "Your labs are now working on " + project.TrueName() + ".";
+		UI::PlaySound(UI::UISound::NORMAL);
+		return;
+	}
+	else
+		status = "The materials to start this project must be in your facilities or warehouse here.";
+	UI::PlaySound(UI::UISound::FAILURE);
+}
+
+
+
+void IndustryPanel::DrawCarrier()
+{
+	const Rectangle box = Box();
+	const Font &font = FontSet::Get(14);
+	const Color &faint = *GameData::Colors().Get("faint");
+	const Color &dim = *GameData::Colors().Get("dim");
+	const Color &medium = *GameData::Colors().Get("medium");
+	const Color &bright = *GameData::Colors().Get("bright");
+	const Industry &industry = player.GetIndustry();
+	const double listTop = box.Top() + LINE + 6.;
+
+	font.Draw("Carrier", box.TopLeft() + Point(PAD, 0.), bright);
+	WrappedText text(font);
+	text.SetWrapWidth(box.Width() - 2. * PAD);
+	if(!industry.HasCarrier())
+	{
+		text.Wrap("You don't have a carrier. A carrier is a station with a fold drive: it moves between systems"
+			" on your orders, and it is the only way across the shear at the edge of known space. Your research"
+			" labs can work out how to build one.");
+		text.Draw(Point(box.Left() + PAD, listTop), medium);
+		return;
+	}
+
+	const Industry::Carrier &carrier = industry.GetCarrier();
+	const System *where = GameData::Systems().Find(carrier.system);
+	const string systemName = where ? where->DisplayName() : carrier.system;
+	const string charges = to_string(industry.Available(carrier.name, "Fold Charges")) + " t of Fold Charges aboard";
+	font.Draw(charges, Point(box.Right() - PAD - font.Width(charges), box.Top()), medium);
+	Point pos(box.Left() + PAD, listTop);
+	if(carrier.daysLeft)
+	{
+		text.Wrap(PlanetName(carrier.name) + " is on its way to the " + systemName + " system, and will arrive in "
+			+ Format::SimplePluralization(carrier.daysLeft, "day") + ".");
+		text.Draw(pos, medium);
+		return;
+	}
+	const Planet *carrierPlanet = GameData::Planets().Find(carrier.name);
+	const bool aboard = (carrierPlanet && player.GetPlanet() == carrierPlanet);
+	font.Draw(PlanetName(carrier.name) + " is in the " + systemName + " system."
+		+ (aboard ? " You are aboard, and will travel with it." : ""), pos, medium);
+
+	const vector<pair<const System *, int>> destinations = player.CarrierDestinations();
+	const double top = listTop + LINE + 6.;
+	if(destinations.empty())
+	{
+		font.Draw("There is nowhere it can go from here.", Point(box.Left() + PAD, top), dim);
+		return;
+	}
+	selectedDestination = clamp(selectedDestination, 0, static_cast<int>(destinations.size()) - 1);
+	const int visible = max(1, VisibleRows(box, top) - 1);
+	scroll = clamp(scroll, max(0, selectedDestination - visible + 1), selectedDestination);
+	for(int i = scroll; i < static_cast<int>(destinations.size()) && i < scroll + visible; ++i)
+	{
+		const auto &[destination, days] = destinations[i];
+		const Point corner(box.Left(), top + (i - scroll) * ROW);
+		const Rectangle row = Rectangle::FromCorner(corner, Point(box.Width(), ROW));
+		if(i == selectedDestination)
+			FillShader::Fill(row, faint);
+		const bool fold = where && PlayerInfo::IsFoldJump(*where, *destination);
+		const string label = destination->DisplayName() + (fold ? " (fold jump across the shear)" : "");
+		font.Draw(label, corner + Point(PAD, .5 * (ROW - font.Height())), i == selectedDestination ? bright : medium);
+		const string length = Format::SimplePluralization(days, "day");
+		font.Draw(length, corner + Point(box.Width() - PAD - font.Width(length), .5 * (ROW - font.Height())), dim);
+		AddZone(row, [this, i]() { selectedDestination = i; status.clear(); });
+	}
+	Point corner(box.Left() + PAD, box.Bottom() - LINE - BUTTON_SIZE.Y() - 8.);
+	DrawButton(corner, "Go", true, [this]() { SendCarrier(); });
+}
+
+
+
+void IndustryPanel::SendCarrier()
+{
+	const vector<pair<const System *, int>> destinations = player.CarrierDestinations();
+	if(destinations.empty())
+		return;
+	const System &destination = *destinations[clamp(selectedDestination, 0,
+		static_cast<int>(destinations.size()) - 1)].first;
+	const string error = player.OrderCarrier(destination);
+	status = error;
+	selectedDestination = 0;
+	UI::PlaySound(error.empty() ? UI::UISound::NORMAL : UI::UISound::FAILURE);
+}
+
+
+
+void IndustryPanel::OrderCarrier(const string &name)
+{
+	const vector<const Blueprint *> blueprints = Blueprints();
+	Industry &industry = player.GetIndustry();
+	const string &here = planet->TrueName();
+	if(blueprints.empty())
+		return;
+	const Blueprint &blueprint = *blueprints[clamp(selectedBlueprint, 0, static_cast<int>(blueprints.size()) - 1)];
+	if(!blueprint.GetCarrier())
+		return;
+	if(!PlayerInfo::IsValidStationName(name))
+		status = "That name is already taken, or cannot be used.";
+	else if(player.Accounts().Credits() < blueprint.Cost() || !industry.PlaceOrder(blueprint, here, name))
+		status = "You can't place that order right now.";
+	else
+	{
+		player.Accounts().AddCredits(-blueprint.Cost());
+		status = "Ordered the carrier " + name + ". It will be waiting in orbit here when it is finished.";
 		UI::PlaySound(UI::UISound::NORMAL);
 		return;
 	}

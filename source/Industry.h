@@ -17,6 +17,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,6 +26,7 @@ class Blueprint;
 class DataNode;
 class DataWriter;
 class Facility;
+class Research;
 template<class Type>
 class Set;
 
@@ -60,6 +62,8 @@ public:
 		// The most recent status reports from this facility, oldest first, as
 		// pairs of date and text.
 		std::vector<std::pair<std::string, std::string>> reports;
+		// Fractions of a ton lost to pirates, carried over to the next day.
+		std::map<std::string, double> pirateCarry;
 
 		// The most tons of any one commodity this holding can store.
 		int Capacity() const;
@@ -97,6 +101,18 @@ public:
 		// The true name of the planet (station) where the order was placed.
 		std::string planet;
 		int daysLeft = 1;
+		// The name the player chose, for a carrier.
+		std::string name;
+	};
+
+	// The player's carrier: a mobile station that moves between systems.
+	struct Carrier {
+		// The true name of the carrier's planet, or empty if the player has none.
+		std::string name;
+		// The system it is in, or travelling to.
+		std::string system;
+		// Days until it arrives, or 0 if it is there.
+		int daysLeft = 0;
 	};
 
 	// The result of a day, in credits.
@@ -112,6 +128,14 @@ public:
 		int64_t tax = 0;
 		// Fabrication orders that were finished today. Delivering them is up to the caller.
 		std::vector<Order> finished;
+		// Research points produced, and the project finished today, if any.
+		int research = 0;
+		const Research *finishedResearch = nullptr;
+		// Goods lost to pirates, in tons and in their usual value.
+		int pirateTons = 0;
+		int64_t pirateValue = 0;
+		// Whether the carrier arrived at its destination today.
+		bool carrierArrived = false;
 
 		// The total change to the player's credits.
 		int64_t Net() const;
@@ -137,6 +161,11 @@ public:
 		// The number of hyperspace jumps between two planets, or -1 if one
 		// cannot be reached from the other.
 		virtual int Jumps(const std::string &from, const std::string &to) const = 0;
+		// The fraction of each day's output that pirates take on the given
+		// planet, before any defenses.
+		virtual double Risk(const std::string &planet) const { return 0.; }
+		// The usual price of a commodity, for reporting losses.
+		virtual int Value(const std::string &commodity) const { return 0; }
 	};
 
 	// Freight costs per ton moved: a flat fee, plus a fee for every jump.
@@ -152,7 +181,8 @@ public:
 
 public:
 	// Load the "industry" node of a saved game.
-	void Load(const DataNode &node, const Set<Facility> &facilities, const Set<Blueprint> *blueprints = nullptr);
+	void Load(const DataNode &node, const Set<Facility> &facilities, const Set<Blueprint> *blueprints = nullptr,
+		const Set<Research> *research = nullptr);
 	void Save(DataWriter &out) const;
 
 	const std::vector<Holding> &Holdings() const;
@@ -175,7 +205,7 @@ public:
 	int WarehouseUsed(const std::string &planet) const;
 	const std::map<std::string, int> &Warehouse(const std::string &planet) const;
 	// Add up to the given tons to a planet's warehouse; returns the tons added.
-	int Store(const std::string &planet, const std::string &commodity, int tons);
+	int Store(const std::string &planet, const std::string &commodity, int tons, bool ignoreCapacity = false);
 	// Take up to the given tons out of a planet's warehouse; returns the tons taken.
 	int Retrieve(const std::string &planet, const std::string &commodity, int tons);
 
@@ -204,9 +234,41 @@ public:
 	// player's facilities there, and the warehouse.
 	int Available(const std::string &planet, const std::string &commodity) const;
 	bool HasMaterials(const Blueprint &blueprint, const std::string &planet) const;
-	// Place an order on a planet with a fabrication bay, using up the materials.
+	// Place an order on a planet with a fabrication bay, using up the materials
+	// (from the facilities' outputs first, then the warehouse). A carrier order
+	// also takes the name the player chose for it.
 	// Paying the credits is up to the caller. Returns false if the order can't be placed.
-	bool PlaceOrder(const Blueprint &blueprint, const std::string &planet);
+	bool PlaceOrder(const Blueprint &blueprint, const std::string &planet, const std::string &name = "");
+
+	// Take the given tons of a commodity from the outputs of the facilities on a
+	// planet, then its warehouse. Takes nothing and returns false if there is not enough.
+	bool Take(const std::string &planet, const std::string &commodity, int tons);
+
+	// Research.
+	const Research *ActiveResearch() const;
+	bool IsResearched(const Research &project) const;
+	const std::set<const Research *> &CompletedResearch() const;
+	// Whether the project has been started (and its materials paid), and its progress.
+	bool HasStarted(const Research &project) const;
+	int Progress(const Research &project) const;
+	// Make this the active project. Starting a project for the first time uses
+	// up its materials from the given planet; returns false if they are missing.
+	bool StartResearch(const Research &project, const std::string &planet);
+	// Add research points to the active project. Returns the project if that finished it.
+	const Research *AddResearch(int points);
+	// Whether any finished project lets freight routes cross the shear.
+	bool HasFoldRelay() const;
+
+	// Pirates. The fraction of each day's output lost on a planet, given the
+	// risk before defenses, after the player's defenses and research.
+	double PirateRisk(const std::string &planet, double baseRisk) const;
+	// The fraction of pirate losses left after research.
+	double ResearchRiskMultiplier() const;
+
+	// The carrier.
+	bool HasCarrier() const;
+	const Carrier &GetCarrier() const;
+	Carrier &GetCarrier();
 
 	// Take up to the given number of tons of a commodity out of a holding's stock.
 	// Returns how many tons were actually taken.
@@ -217,7 +279,7 @@ public:
 
 
 private:
-	void Produce(Holding &holding, int64_t &credits, DayReport &report);
+	void Produce(Holding &holding, int64_t &credits, DayReport &report, double risk, const World *world);
 	void RunRoute(Route &route, int64_t &credits, DayReport &report, World &world);
 	// Sell goods on a market, applying and adding to its saturation. Returns the income.
 	int64_t Sell(const std::string &planet, const std::string &commodity, int tons, int price,
@@ -231,6 +293,10 @@ private:
 	std::map<std::string, std::map<std::string, int>> warehouses;
 	std::vector<Route> routes;
 	std::vector<Order> orders;
+	const Research *activeResearch = nullptr;
+	std::map<const Research *, int> researchProgress;
+	std::set<const Research *> completedResearch;
+	Carrier carrier;
 	// Saturation by planet and commodity.
 	std::map<std::pair<std::string, std::string>, double> saturation;
 	DayReport lastReport;

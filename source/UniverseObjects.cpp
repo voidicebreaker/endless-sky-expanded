@@ -369,6 +369,15 @@ void UniverseObjects::CheckReferences()
 					Logger::Log("Facility \"" + it.first + "\" uses unknown commodity \"" + amount.first + "\".",
 						Logger::Level::WARNING);
 	}
+	for(const auto &it : research)
+	{
+		if(!it.second.IsDefined())
+			Warn("research", it.first);
+		for(const auto &amount : it.second.Materials())
+			if(!commodityNames.contains(amount.first))
+				Logger::Log("Research \"" + it.first + "\" uses unknown commodity \"" + amount.first + "\".",
+					Logger::Level::WARNING);
+	}
 	// Blueprints must name an outfit or ship, and use defined commodities.
 	for(const auto &it : blueprints)
 	{
@@ -379,6 +388,9 @@ void UniverseObjects::CheckReferences()
 		}
 		if(it.second.GetOutfit() && !it.second.GetOutfit()->IsDefined())
 			Logger::Log("Blueprint \"" + it.first + "\" builds an undefined outfit.", Logger::Level::WARNING);
+		if(it.second.GetCarrier() && !it.second.GetCarrier()->IsCarrier())
+			Logger::Log("Blueprint \"" + it.first + "\" builds a carrier from a facility that is not a carrier.",
+				Logger::Level::WARNING);
 		if(it.second.GetShip() && !it.second.GetShip()->IsValid())
 			Logger::Log("Blueprint \"" + it.first + "\" builds an undefined ship.", Logger::Level::WARNING);
 		for(const auto &amount : it.second.Materials())
@@ -475,6 +487,13 @@ void UniverseObjects::LoadFile(const filesystem::path &path, const PlayerInfo &p
 			if(overwrite)
 				*blueprint = Blueprint();
 			blueprint->Load(node);
+		}
+		else if(key == "research" && hasValue)
+		{
+			Research *project = research.Get(node.Token(1));
+			if(overwrite)
+				*project = Research();
+			project->Load(node);
 		}
 		else if(key == "facility" && hasValue)
 		{

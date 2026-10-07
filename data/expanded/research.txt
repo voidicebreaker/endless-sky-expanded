@@ -1,0 +1,72 @@
+# Copyright (c) 2026 by Endless Sky Expanded contributors
+#
+# Endless Sky is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later version.
+#
+# Endless Sky is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+
+# Research projects for the player's research labs. Each project needs research
+# points; finishing it gives the player the condition "research: <name>".
+#
+# research "<name>"
+# 	description `<shown in the Research view>`
+# 	cost <research points>
+# 	requires "<condition>"                 (any number; other projects are "research: <name>")
+# 	material "<commodity>" <tons>          (any number; used up when the project is started)
+# 	"risk reduction" <percent>             (cuts all pirate losses)
+# 	"fold relay"                           (freight routes can cross the shear)
+# 	event "<event>"                        (applied when the project is finished)
+
+
+
+research "Deep Survey Array"
+	description `Long-baseline sensors to map hyperspace beyond the edge of the charts. Nobody has bothered in centuries, because everyone knows what is out there: nothing.`
+	cost 300
+
+research "Convoy Countermeasures"
+	description `Decoy beacons, staggered schedules, and a habit of not announcing where the cargo is going. Cuts what pirates take from all of your facilities by 30%.`
+	cost 400
+	"risk reduction" 30
+
+research "Shear Mapping"
+	description `Your survey array keeps finding the same thing: a place past Suhail where hyperspace stops, like the edge of a table. Mapping it properly should tell you what is on the other side.`
+	cost 600
+	requires "research: Deep Survey Array"
+	event "expanded: shear mapped"
+
+research "Fold Theory"
+	description `If hyperspace cannot be crossed at the shear, perhaps it can be folded around it. The theory calls for fuel that does not exist yet, which is what the theory is for.`
+	cost 900
+	requires "research: Shear Mapping"
+
+research "Carrier Keel"
+	description `A fold drive needs mass and stability that no ship can give it. A station can. This project works out how to build a station that moves, which your fabrication bays can then build.`
+	cost 1500
+	requires "research: Fold Theory"
+
+research "Relic Reconstruction"
+	description `The machines beyond the shear were built by people who thought very carefully. With enough salvage, your labs can work out what some of them did, and build new ones.`
+	cost 800
+	requires "expanded: relics studied"
+	material "Relic Fragments" 20
+
+research "Hardened Holdings"
+	description `Shear glass armor and relic-pattern sensors for your facilities, so that pirates find them harder to reach and harder to rob. Cuts what pirates take from all of your facilities by another 30%.`
+	cost 700
+	requires "research: Convoy Countermeasures"
+	requires "research: Relic Reconstruction"
+	material "Shear Glass" 15
+	"risk reduction" 30
+
+research "Fold Relay"
+	description `A chain of unmanned fold buoys that pass cargo across the shear, using the old builders' method. Once it is running, your freight routes can cross the shear like any other border, for the price of ten jumps a ton.`
+	cost 1200
+	requires "expanded: archive read"
+	material "Shear Glass" 30
+	"fold relay"

@@ -16,6 +16,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "Blueprint.h"
 
 #include "DataNode.h"
+#include "Facility.h"
 #include "GameData.h"
 #include "Outfit.h"
 #include "Ship.h"
@@ -41,11 +42,19 @@ void Blueprint::Load(const DataNode &node)
 		{
 			outfit = GameData::Outfits().Get(child.Token(1));
 			ship = nullptr;
+			carrier = nullptr;
 		}
 		else if(key == "ship" && hasValue)
 		{
 			ship = GameData::Ships().Get(child.Token(1));
 			outfit = nullptr;
+			carrier = nullptr;
+		}
+		else if(key == "carrier" && hasValue)
+		{
+			carrier = GameData::Facilities().Get(child.Token(1));
+			outfit = nullptr;
+			ship = nullptr;
 		}
 		else if(key == "cost" && hasValue)
 			cost = max<int64_t>(0, child.Value(1));
@@ -70,7 +79,7 @@ void Blueprint::Load(const DataNode &node)
 
 bool Blueprint::IsDefined() const
 {
-	return !trueName.empty() && (outfit || ship);
+	return !trueName.empty() && (outfit || ship || carrier);
 }
 
 
@@ -102,7 +111,16 @@ string Blueprint::ItemName() const
 		return outfit->DisplayName();
 	if(ship)
 		return ship->DisplayModelName();
+	if(carrier)
+		return carrier->TrueName();
 	return trueName;
+}
+
+
+
+const Facility *Blueprint::GetCarrier() const
+{
+	return carrier;
 }
 
 

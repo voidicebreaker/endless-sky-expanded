@@ -61,6 +61,13 @@ public:
 	bool IsFabricator() const;
 	// Outfitters that building this facility adds to its planet.
 	const std::vector<std::string> &Outfitters() const;
+	// Research points this facility produces each day, per unit, while it has its inputs.
+	int Research() const;
+	// The percentage by which each unit of this facility cuts pirate losses on its planet.
+	int Defense() const;
+	// Whether this is the hull of the player's carrier. Carriers cannot be built
+	// directly; they are fabricated from a blueprint.
+	bool IsCarrier() const;
 
 	// Check whether this facility can be built on a planet, given its true name,
 	// attributes, and whether it is inhabited: either the planet is listed by name,
@@ -86,6 +93,9 @@ private:
 	bool isStation = false;
 	bool isFabricator = false;
 	std::vector<std::string> outfitters;
+	int research = 0;
+	int defense = 0;
+	bool isCarrier = false;
 	std::set<std::string> planets;
 	std::set<std::string> attributes;
 	bool anyUninhabited = false;

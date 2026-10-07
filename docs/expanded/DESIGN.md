@@ -19,7 +19,8 @@ updated at the end of every piece.
 | 3. Space stations, warehouses and freight routes | Done, waiting for playtest |
 | 3b. Industry tax and market saturation | Done, waiting for playtest |
 | 4. Station fabrication: exclusive outfits and ships, remote management, art pack | Done, waiting for playtest |
-| 5. Next | To be agreed (home base / carrier ideas parked for now) |
+| 5. Research, the Fold Carrier, the region beyond the shear, pirates | Done, waiting for playtest |
+| 6. Next | To be agreed. The user plans a full balance playthrough first. |
 
 ## Piece 0 - Pipeline + dev menu (done)
 
@@ -225,6 +226,49 @@ Goal: give stations and outposts something only they can make, X4 style: build t
   is all it takes to use new art.
 - Tests: unit tests for blueprints, ordering, material sources, queueing and saving; integration
   tests for ordering an outfit at a station and ordering a ship from flight.
+
+## Piece 5 - Research, the Fold Carrier, and beyond the shear (done)
+
+Goal: an endgame for industry. Research leads to a carrier, the only way into a hidden region.
+
+- Research (`Research` class, data type `research`, `data/expanded/research.txt`): Research Labs
+  (`research <points>` on facilities) turn Electronics and Lattice Crystal into points for the
+  active project. Projects need points, may need conditions (`requires`, other projects are
+  "research: <name>") and one-off materials taken where the player starts them, and can cut pirate
+  losses (`"risk reduction"`), enable freight across the shear (`"fold relay"`) or apply an event.
+  Finishing gives the condition "research: <name>". Industry panel **Research** view; progress
+  and the active project are saved in the industry block. Chain: Deep Survey Array -> Shear Mapping
+  (reveals the region) -> Fold Theory (Fold Refinery: Fold Charges) -> Carrier Keel (carrier
+  blueprint); side projects Convoy Countermeasures, Relic Reconstruction, Hardened Holdings, Fold
+  Relay.
+- Fold Carrier: fabricated from a `carrier` blueprint (10M credits, alloy, lattice, Fold Charges,
+  40 days; one per player, named by the player). It is a station (planet with attributes
+  "player station" "player carrier", defined once in the saved changes) whose stellar object is
+  NOT saved as a change: `PlayerInfo::PlaceCarrier` puts it in `Industry::Carrier::system` on
+  loading and after moves. Industry panel **Carrier** view lists destinations within 5 jumps (a
+  day each) plus the fold jump between Suhail and Threshold (20 Fold Charges from the carrier's
+  warehouse, 2 days). Ordered while docked on it: the player rides along (date advances, the player
+  launches at the destination; `TakeOff` follows a planet that moved). Otherwise it travels on its
+  own and appears on arrival, but never while the player is flying in that system. Station modules
+  (warehouse, fabrication bay, labs) can be built on it.
+- Beyond the shear (`data/expanded/beyond the shear.txt`): seven unlinked systems past Suhail
+  (Threshold, Vigil, Lantern, Ashfall, Ninefold, Hollow Crown, Last Light). No spaceports; the
+  player lands to build outposts. Salvage Rig ("expanded ruin" worlds: Relic Fragments), Shear
+  Harvester ("expanded shear" worlds: Shear Glass). Top-tier blueprints: Relic Ward, Shear Lance,
+  Remnant Reactor.
+- Story (`data/expanded/the shear.txt`, Shear 1-5): Dr. Oriel Fenn on Asgard, the dismissed
+  theorist; first landfall (scavengers follow the fold wake: pirate fleets arrive 6 days later);
+  the Crown Archive (the builders walled themselves in against something that never came, and their
+  fleets could not get home); Vesper at Last Light, still broadcasting a welcome home. Leave it on
+  or switch it off.
+- Pirates: a steady share of each day's output is lost on dangerous planets, never a random
+  disaster. Risk = 25% x system danger / the 90th percentile of danger, cut by Defense Platforms
+  (40% per unit, multiplicative) and research (Convoy Countermeasures, Hardened Holdings, 30% each).
+  Shown per facility ("Pirates take about N% of output here") and in Finances ("Lost to pirates").
+- Dev menu: "Add 1,000 research points" (9); Close moved to 0. Warehouse stocking now ignores
+  capacity.
+- Tests: unit tests for research, pirate losses, defenses and carrier travel; integration tests
+  for researching (including the event that reveals the region) and a fold jump while aboard.
 
 ## Roadmap (revise as we learn)
 

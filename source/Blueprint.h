@@ -21,6 +21,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include <vector>
 
 class DataNode;
+class Facility;
 class Outfit;
 class Ship;
 
@@ -44,9 +45,11 @@ public:
 	bool IsDefined() const;
 
 	const std::string &TrueName() const;
-	// What this blueprint builds. Exactly one of these is set.
+	// What this blueprint builds. Exactly one of these is set: an outfit, a
+	// ship, or the hull of a carrier (a mobile station).
 	const Outfit *GetOutfit() const;
 	const Ship *GetShip() const;
+	const Facility *GetCarrier() const;
 	// The display name of the outfit or ship.
 	std::string ItemName() const;
 	int64_t Cost() const;
@@ -60,6 +63,7 @@ private:
 	std::string trueName;
 	const Outfit *outfit = nullptr;
 	const Ship *ship = nullptr;
+	const Facility *carrier = nullptr;
 	int64_t cost = 0;
 	Amounts materials;
 	int days = 1;

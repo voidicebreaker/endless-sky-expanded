@@ -4,71 +4,155 @@
 			"name": "Kiln Cargo Frame",
 			"kind": "outfit",
 			"image": "outfit/expanded/kiln cargo frame",
-			"style": ["outfit/cargo expansion", "outfit/fuel pod", "outfit/large shield"],
+			"style": [
+				"outfit/cargo expansion",
+				"outfit/fuel pod",
+				"outfit/large shield"
+			],
 			"prompt": "A cargo expansion module: a thin-walled box frame cast from pale, satin-gray alloy with a faint pearly sheen. Open lattice ribs along the sides show the empty hold inside. Small stenciled hazard stripes and a load rating plate. It should look lighter and more precise than an ordinary steel cargo pod."
 		},
 		{
 			"name": "Lattice Fuel Cell",
 			"kind": "outfit",
 			"image": "outfit/expanded/lattice fuel cell",
-			"style": ["outfit/fuel pod", "outfit/cargo expansion", "outfit/large shield"],
+			"style": [
+				"outfit/fuel pod",
+				"outfit/cargo expansion",
+				"outfit/large shield"
+			],
 			"prompt": "A compact fuel tank. Through narrow windows in its pale gray alloy casing you can see a translucent, blue-white crystal lattice inside, like honeycomb, holding the fuel. A fuel coupling on one end."
 		},
 		{
 			"name": "Lattice Shield Weave",
 			"kind": "outfit",
 			"image": "outfit/expanded/lattice shield weave",
-			"style": ["outfit/large shield", "outfit/fuel pod", "outfit/fusion"],
+			"style": [
+				"outfit/large shield",
+				"outfit/fuel pod",
+				"outfit/fusion"
+			],
 			"prompt": "A ship shield generator: a dark, heavy base unit topped with an emitter wrapped in a fine woven mesh of pale cyan crystal threads that glow faintly. Industrial, functional, not magical."
 		},
 		{
 			"name": "Foundry Ion Drive",
 			"kind": "outfit",
 			"image": "outfit/expanded/foundry ion drive",
-			"style": ["outfit/medium ion thruster", "outfit/medium ion steering", "outfit/large shield"],
+			"style": [
+				"outfit/medium ion thruster",
+				"outfit/medium ion steering",
+				"outfit/large shield"
+			],
 			"prompt": "A starship ion engine that combines a main thruster nozzle and small side steering vents in a single seamless casting of pale gray alloy, with no visible bolts or seams. A faint blue glow deep inside the nozzle."
 		},
 		{
 			"name": "Lattice Lance",
 			"kind": "outfit",
 			"image": "outfit/expanded/lattice lance",
-			"style": ["outfit/heavy laser", "outfit/laser", "outfit/large shield"],
+			"style": [
+				"outfit/heavy laser",
+				"outfit/laser",
+				"outfit/large shield"
+			],
 			"prompt": "A ship-mounted laser cannon with a long barrel. Slots along the barrel reveal a clear, faceted crystal rod running down its length. Gray alloy housing, power cables at the back."
 		},
 		{
 			"name": "Deepworks Fusion Core",
 			"kind": "outfit",
 			"image": "outfit/expanded/deepworks fusion core",
-			"style": ["outfit/fusion", "outfit/large shield", "outfit/heavy laser"],
+			"style": [
+				"outfit/fusion",
+				"outfit/large shield",
+				"outfit/heavy laser"
+			],
 			"prompt": "A squat cylindrical power generator in dull gray alloy, designed six hundred years ago by a mining company. Cooling channels in organic, branching patterns are grown into the casing. A riveted, old-fashioned part number plate on the side. Sturdy, conservative, industrial."
 		},
 		{
 			"name": "Foundry Hauler",
 			"kind": "ship",
 			"image": "ship/expanded/foundry hauler",
-			"style": ["ship/bulk freighter", "ship/behemoth", "ship/bactrian"],
+			"style": [
+				"ship/bulk freighter",
+				"ship/behemoth",
+				"ship/bactrian"
+			],
 			"prompt": "A huge, blocky bulk freighter with a long rectangular hull and cargo pods along its spine. Smooth, seamless cast plating of pale gray alloy with yellow industrial markings. Built by an independent captain's own station, not a big shipyard: practical and a little rough."
 		},
 		{
 			"name": "Foundry Hauler",
 			"kind": "thumbnail",
 			"image": "thumbnail/expanded/foundry hauler",
-			"style": ["thumbnail/bulk freighter", "thumbnail/behemoth", "thumbnail/bactrian"],
+			"style": [
+				"thumbnail/bulk freighter",
+				"thumbnail/behemoth",
+				"thumbnail/bactrian"
+			],
 			"prompt": "The same bulk freighter as the top-down sprite: a long, blocky hull with cargo pods along its spine, pale gray alloy plating with yellow industrial markings."
 		},
 		{
 			"name": "Deepworks Warden",
 			"kind": "ship",
 			"image": "ship/expanded/deepworks warden",
-			"style": ["ship/falcon", "ship/leviathan", "ship/vanguard"],
+			"style": [
+				"ship/falcon",
+				"ship/leviathan",
+				"ship/vanguard"
+			],
 			"prompt": "A heavy warship with a long, broad spine and four forward guns. Its design is six hundred years old, drawn up by a mining company to escort ore convoys: rugged, boxy armor in gray-green with faded orange company stripes. Built new from the old plans, so the paint is fresh but the shapes are old-fashioned."
 		},
 		{
 			"name": "Deepworks Warden",
 			"kind": "thumbnail",
 			"image": "thumbnail/expanded/deepworks warden",
-			"style": ["thumbnail/falcon", "thumbnail/leviathan", "thumbnail/vanguard"],
+			"style": [
+				"thumbnail/falcon",
+				"thumbnail/leviathan",
+				"thumbnail/vanguard"
+			],
 			"prompt": "The same heavy warship as the top-down sprite: a long, broad spine, four forward guns, boxy gray-green armor with faded orange company stripes."
+		},
+		{
+			"name": "Fold Carrier",
+			"kind": "station",
+			"image": "planet/expanded/carrier",
+			"style": [
+				"planet/station-platform-a2",
+				"planet/station-depot-a0",
+				"planet/station-cylinder-a0"
+			],
+			"prompt": "A huge mobile space station with a fold drive in its keel: a long, heavy spine of pale gray alloy, wide hangar doors along both sides, cargo modules clamped to the hull, and a ring of field emitters around the stern that glow faintly blue. It looks like a working industrial carrier, practical rather than elegant."
+		},
+		{
+			"name": "Relic Ward",
+			"kind": "outfit",
+			"image": "outfit/expanded/relic ward",
+			"style": [
+				"outfit/large shield",
+				"outfit/expanded/lattice shield weave",
+				"outfit/fusion"
+			],
+			"prompt": "A compact shield generator rebuilt from alien salvage: a smooth, rounded casing in a warm, pale stone-like material with very neat engraved symbols, fitted into a cruder human-made bracket with cables. A faint warm glow from inside."
+		},
+		{
+			"name": "Shear Lance",
+			"kind": "outfit",
+			"image": "outfit/expanded/shear lance",
+			"style": [
+				"outfit/heavy laser",
+				"outfit/expanded/lattice lance",
+				"outfit/laser"
+			],
+			"prompt": "A long ship-mounted beam cannon with a lens of dark, smoky glass at the muzzle that bends the light around it. Gray human-made housing with power cables, and the dark glass lens held in a precise alien-made collar."
+		},
+		{
+			"name": "Remnant Reactor",
+			"kind": "outfit",
+			"image": "outfit/expanded/remnant reactor",
+			"style": [
+				"outfit/fusion",
+				"outfit/expanded/deepworks fusion core",
+				"outfit/large shield"
+			],
+			"prompt": "A squat power reactor copied from an ancient alien station: smooth, rounded, and very tidy, in pale stone-like material with neatly engraved labels, set inside a heavier human-built frame with bolts and cooling pipes."
 		}
 	]
 }

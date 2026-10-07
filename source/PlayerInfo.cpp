@@ -45,6 +45,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "Preferences.h"
 #include "RaidFleet.h"
 #include "Random.h"
+#include "Research.h"
 #include "SavedGame.h"
 #include "ScanType.h"
 #include "Ship.h"
@@ -72,8 +73,44 @@ using namespace std;
 
 namespace {
 	// Connects the player's industry to the markets and the hyperspace map.
+	// The system at the edge of known space that the carrier folds from, and the
+	// system beyond the shear that it folds to.
+	const string SHEAR_EDGE = "Suhail";
+	const string SHEAR_LANDFALL = "Threshold";
+	// Fold Charges a fold jump uses, and the days it takes.
+	const int FOLD_CHARGES = 20;
+	const int FOLD_DAYS = 2;
+	// How many jumps the carrier can travel in one order, at a day per jump.
+	const int CARRIER_RANGE = 5;
+	// Freight across the shear (with a fold relay) costs as much as this many extra jumps.
+	const int FOLD_FREIGHT_JUMPS = 10;
+	// The most that pirates can take from a day's output, in the most dangerous systems.
+	const double MAX_PIRATE_RISK = .25;
+
+	// Jumps between two systems along hyperspace links, or -1 if there is no route.
+	int SystemJumps(const System *start, const System *goal)
+	{
+		if(!start || !goal)
+			return -1;
+		map<const System *, int> distance = {{start, 0}};
+		list<const System *> queue = {start};
+		while(!queue.empty())
+		{
+			const System *system = queue.front();
+			queue.pop_front();
+			if(system == goal)
+				return distance[system];
+			for(const System *link : system->Links())
+				if(distance.emplace(link, distance[system] + 1).second)
+					queue.push_back(link);
+		}
+		return -1;
+	}
+
 	class IndustryWorld : public Industry::World {
 	public:
+		explicit IndustryWorld(const Industry &industry) : industry(industry) {}
+
 		virtual int Price(const string &planetName, const string &commodity) const override
 		{
 			const System *system = MarketSystem(planetName);
@@ -94,26 +131,57 @@ namespace {
 			const Planet *toPlanet = GameData::Planets().Find(to);
 			const System *start = fromPlanet ? fromPlanet->GetSystem() : nullptr;
 			const System *goal = toPlanet ? toPlanet->GetSystem() : nullptr;
-			if(!start || !goal)
-				return -1;
-			// Breadth-first search along hyperspace links.
-			map<const System *, int> distance = {{start, 0}};
-			list<const System *> queue = {start};
-			while(!queue.empty())
+			const int jumps = SystemJumps(start, goal);
+			if(jumps >= 0 || !start || !goal || !industry.HasFoldRelay())
+				return jumps;
+			// With a fold relay, freight can cross the shear in either direction.
+			const System *edge = GameData::Systems().Find(SHEAR_EDGE);
+			const System *landfall = GameData::Systems().Find(SHEAR_LANDFALL);
+			for(int i = 0; i < 2; ++i)
 			{
-				const System *system = queue.front();
-				queue.pop_front();
-				if(system == goal)
-					return distance[system];
-				for(const System *link : system->Links())
-					if(distance.emplace(link, distance[system] + 1).second)
-						queue.push_back(link);
+				const int first = SystemJumps(start, i ? landfall : edge);
+				const int second = SystemJumps(i ? edge : landfall, goal);
+				if(first >= 0 && second >= 0)
+					return first + second + FOLD_FREIGHT_JUMPS;
 			}
 			return -1;
 		}
 
+		virtual double Risk(const string &planetName) const override
+		{
+			const Planet *planet = GameData::Planets().Find(planetName);
+			const System *system = planet ? planet->GetSystem() : nullptr;
+			if(!system)
+				return 0.;
+			return MAX_PIRATE_RISK * min(1., system->Danger() / ReferenceDanger());
+		}
+
+		virtual int Value(const string &commodity) const override
+		{
+			for(const Trade::Commodity &it : GameData::Commodities())
+				if(it.name == commodity)
+					return (it.low + it.high) / 2;
+			return 0;
+		}
+
 
 	private:
+		// The danger at which pirates take the most they can: that of the most
+		// dangerous tenth of inhabited systems.
+		static double ReferenceDanger()
+		{
+			static double reference = 0.;
+			if(reference > 0.)
+				return reference;
+			vector<double> dangers;
+			for(const auto &it : GameData::Systems())
+				if(it.second.IsValid() && it.second.Danger() > 0.)
+					dangers.push_back(it.second.Danger());
+			sort(dangers.begin(), dangers.end());
+			reference = dangers.empty() ? 1. : dangers[dangers.size() * 9 / 10];
+			return reference;
+		}
+
 		// The system whose market serves the given planet, if it has one.
 		static const System *MarketSystem(const string &planetName)
 		{
@@ -123,6 +191,10 @@ namespace {
 			const System *system = planet->GetSystem();
 			return (system && system->HasTrade()) ? system : nullptr;
 		}
+
+
+	private:
+		const Industry &industry;
 	};
 }
 
@@ -494,7 +566,7 @@ void PlayerInfo::Load(const filesystem::path &path, const shared_ptr<PilotProfil
 		else if(key == "cargo")
 			cargo.Load(child);
 		else if(key == "industry")
-			industry.Load(child, GameData::Facilities(), &GameData::Blueprints());
+			industry.Load(child, GameData::Facilities(), &GameData::Blueprints(), &GameData::ResearchProjects());
 		else if(key == "basis")
 		{
 			for(const DataNode &grand : child)
@@ -1025,14 +1097,28 @@ void PlayerInfo::AdvanceDate(int amount)
 // and selling the output of any set to auto-sell on their local markets.
 void PlayerInfo::AdvanceIndustry()
 {
-	if(industry.Holdings().empty() && industry.Orders().empty())
+	if(industry.Holdings().empty() && industry.Orders().empty() && !industry.HasCarrier())
 		return;
 
-	IndustryWorld world;
+	IndustryWorld world(industry);
 	const Industry::DayReport report = industry.AdvanceDay(accounts.Credits(), &world);
 	accounts.AddCredits(report.Net());
 	for(const Industry::Order &order : report.finished)
-		DeliverFabrication(*order.blueprint, order.planet);
+		DeliverFabrication(order);
+	if(report.finishedResearch)
+	{
+		Messages::Add({"Research complete: " + report.finishedResearch->TrueName() + ".",
+			GameData::MessageCategories().Get("high")});
+		const string &eventName = report.finishedResearch->Event();
+		if(!eventName.empty())
+			AddEvent(*GameData::Events().Get(eventName), date);
+	}
+	if(report.carrierArrived)
+		carrierWaiting = true;
+	PlaceWaitingCarrier();
+	if(report.pirateTons)
+		Messages::Add({"Pirates took " + Format::MassString(report.pirateTons) + " of your industry's output.",
+			GameData::MessageCategories().Get("daily")});
 
 	if(report.upkeep || report.sales || report.purchases || report.freight)
 	{
@@ -1136,9 +1222,10 @@ void PlayerInfo::BuildFacility(const Facility &type, const string &planetName)
 
 // Deliver a finished fabrication order to the station where it was placed:
 // outfits go into storage there, and ships are parked there.
-void PlayerInfo::DeliverFabrication(const Blueprint &blueprint, const string &planetName)
+void PlayerInfo::DeliverFabrication(const Industry::Order &order)
 {
-	const Planet *where = GameData::Planets().Find(planetName);
+	const Blueprint &blueprint = *order.blueprint;
+	const Planet *where = GameData::Planets().Find(order.planet);
 	if(!where || !where->IsValid() || !where->GetSystem())
 		return;
 
@@ -1163,6 +1250,13 @@ void PlayerInfo::DeliverFabrication(const Blueprint &blueprint, const string &pl
 		message = "\"" + ship.GivenName() + "\" is parked at " + where->DisplayName()
 			+ ". Unpark it in your fleet list to have it join you.";
 	}
+	else if(const Facility *hull = blueprint.GetCarrier())
+	{
+		if(!FoundCarrier(*hull, order.name, *where))
+			return;
+		message = "\"" + order.name + "\" is waiting in orbit in the " + where->GetSystem()->DisplayName()
+			+ " system. Order it around from the Carrier tab of the Industry screen.";
+	}
 	else
 		return;
 	Messages::Add({"Fabrication complete: your " + blueprint.ItemName() + " " + message,
@@ -1172,14 +1266,227 @@ void PlayerInfo::DeliverFabrication(const Blueprint &blueprint, const string &pl
 
 
 // Apply some changes to the universe (in the format of an event) now, and
-// remember them so that they are applied again when the game is loaded.
-void PlayerInfo::ChangeUniverse(const string &text)
+// remember them so that they are applied again when the game is loaded,
+// unless they are only for this session.
+void PlayerInfo::ChangeUniverse(const string &text, bool save)
 {
 	istringstream in(text);
 	DataFile file(in);
 	list<DataNode> changes(file.begin(), file.end());
-	dataChanges.insert(dataChanges.end(), changes.begin(), changes.end());
+	if(save)
+		dataChanges.insert(dataChanges.end(), changes.begin(), changes.end());
 	AddChanges(changes);
+}
+
+
+
+// Create the player's carrier, in orbit in the system of the station that built it.
+bool PlayerInfo::FoundCarrier(const Facility &hull, const string &name, const Planet &station)
+{
+	if(industry.HasCarrier() || !station.GetSystem() || !IsValidStationName(name))
+		return false;
+
+	const string description = name + " is your carrier: a station with a fold drive, built in your own"
+		" fabrication bay. Its hull is a kilometer of zero-g alloy, most of it hangar, and its crew talks"
+		" about the fold drive the way sailors once talked about the sea.";
+	const string spaceport = "The hangar deck is loud, cold, and always busy. Somebody has painted a line on"
+		" the floor marking where the fold field ends. Nobody steps over it during a jump, even though the"
+		" engineers say it makes no difference.";
+	ostringstream text;
+	text << "planet " << DataWriter::Quote(name) << '\n'
+		<< "\tattributes station \"player station\" \"player carrier\"\n"
+		<< "\tlandscape land/station3\n"
+		<< "\tgovernment \"Expanded Holdings\"\n"
+		<< "\tdescription `" << description << "`\n"
+		<< "\tspaceport `" << spaceport << "`\n"
+		<< "\tsecurity 0\n";
+	ChangeUniverse(text.str());
+
+	industry.GetCarrier() = {name, station.GetSystem()->TrueName(), 0};
+	BuildFacility(hull, name);
+	PlaceCarrier();
+	return true;
+}
+
+
+
+// Order the carrier to another system. Returns an explanation if it cannot go.
+string PlayerInfo::OrderCarrier(const System &destination)
+{
+	Industry::Carrier &carrier = industry.GetCarrier();
+	const System *current = GameData::Systems().Find(carrier.system);
+	const Planet *carrierPlanet = GameData::Planets().Find(carrier.name);
+	if(!industry.HasCarrier() || !current || !carrierPlanet)
+		return "You don't have a carrier.";
+	if(carrier.daysLeft)
+		return "The carrier is already on its way somewhere.";
+	if(&destination == current)
+		return "The carrier is already there.";
+	int days = 0;
+	string folded;
+	if(IsFoldJump(*current, destination))
+	{
+		if(!industry.Take(carrier.name, "Fold Charges", FOLD_CHARGES))
+			return "A fold jump needs " + to_string(FOLD_CHARGES) + " tons of Fold Charges in the carrier's warehouse.";
+		days = FOLD_DAYS;
+		folded = " The fold used " + to_string(FOLD_CHARGES) + " tons of Fold Charges.";
+	}
+	else
+	{
+		const int jumps = SystemJumps(current, &destination);
+		if(jumps < 0)
+			return "There is no hyperspace route there. Only a fold jump crosses the shear.";
+		if(jumps > CARRIER_RANGE)
+			return "That is too far for one order. The carrier can travel " + to_string(CARRIER_RANGE) + " jumps at a time.";
+		days = jumps;
+	}
+	// Moving a station in or out of the system the player is flying in is not safe.
+	if(!planet && (system == current || system == &destination))
+	{
+		if(!folded.empty())
+			industry.Store(carrier.name, "Fold Charges", FOLD_CHARGES);
+		return "Land, or leave this system, before giving the carrier that order.";
+	}
+
+	const bool docked = (planet == carrierPlanet);
+	RemoveCarrier();
+	carrier.system = destination.TrueName();
+	if(docked)
+	{
+		// The player rides along, and launches when the carrier arrives.
+		PlaceCarrier();
+		AdvanceDate(days);
+		shouldLaunch = true;
+		Messages::Add({"\"" + carrier.name + "\" arrived in the " + destination.DisplayName() + " system with you aboard."
+			+ folded, GameData::MessageCategories().Get("high")});
+	}
+	else
+	{
+		carrier.daysLeft = days;
+		Messages::Add({"\"" + carrier.name + "\" is on its way to the " + destination.DisplayName() + " system. It will"
+			" arrive in " + Format::SimplePluralization(days, "day") + "." + folded,
+			GameData::MessageCategories().Get("normal")});
+	}
+	return "";
+}
+
+
+
+// The fraction of each day's output that pirates take on the given planet,
+// after the player's defenses and research.
+double PlayerInfo::PirateRisk(const string &planetName) const
+{
+	return industry.PirateRisk(planetName, IndustryWorld(industry).Risk(planetName));
+}
+
+
+
+// Check whether going between these systems is a fold jump across the shear.
+bool PlayerInfo::IsFoldJump(const System &from, const System &to)
+{
+	return (from.TrueName() == SHEAR_EDGE && to.TrueName() == SHEAR_LANDFALL)
+		|| (from.TrueName() == SHEAR_LANDFALL && to.TrueName() == SHEAR_EDGE);
+}
+
+
+
+// The systems the carrier can be ordered to from where it is now, with the
+// days it would take to get to each.
+vector<pair<const System *, int>> PlayerInfo::CarrierDestinations() const
+{
+	vector<pair<const System *, int>> result;
+	const Industry::Carrier &carrier = industry.GetCarrier();
+	const System *current = GameData::Systems().Find(carrier.system);
+	if(!industry.HasCarrier() || carrier.daysLeft || !current)
+		return result;
+	map<const System *, int> distance = {{current, 0}};
+	list<const System *> queue = {current};
+	while(!queue.empty())
+	{
+		const System *next = queue.front();
+		queue.pop_front();
+		if(distance[next] >= CARRIER_RANGE)
+			continue;
+		for(const System *link : next->Links())
+			if(distance.emplace(link, distance[next] + 1).second)
+			{
+				queue.push_back(link);
+				result.emplace_back(link, distance[link]);
+			}
+	}
+	// Nearest first, then by name.
+	sort(result.begin(), result.end(), [](const pair<const System *, int> &a, const pair<const System *, int> &b)
+	{
+		return a.second != b.second ? a.second < b.second : a.first->DisplayName() < b.first->DisplayName();
+	});
+	const System *other = GameData::Systems().Find(current->TrueName() == SHEAR_EDGE ? SHEAR_LANDFALL : SHEAR_EDGE);
+	if(other && IsFoldJump(*current, *other))
+		result.emplace(result.begin(), other, FOLD_DAYS);
+	return result;
+}
+
+
+
+// Put the carrier's stellar object into the system it is in. This is not saved
+// as a universe change; it is redone from the industry state on loading.
+void PlayerInfo::PlaceCarrier()
+{
+	const Industry::Carrier &carrier = industry.GetCarrier();
+	const Planet *carrierPlanet = GameData::Planets().Find(carrier.name);
+	const System *where = GameData::Systems().Find(carrier.system);
+	if(!carrierPlanet || !where || carrier.daysLeft || carrierPlanet->GetSystem())
+		return;
+	// Keep it outside the orbits of everything else in the system.
+	double distance = 0.;
+	for(const StellarObject &object : where->Objects())
+		if(object.Parent() < 0)
+			distance = max(distance, object.Distance());
+	ostringstream text;
+	text << "system " << DataWriter::Quote(where->TrueName()) << '\n'
+		<< "\tadd object " << DataWriter::Quote(carrier.name) << '\n'
+		<< "\t\tsprite planet/expanded/carrier\n"
+		<< "\t\tdistance " << static_cast<int>(distance + 300.) << '\n';
+	ChangeUniverse(text.str(), false);
+}
+
+
+
+// Take the carrier's stellar object out of the system it is in.
+void PlayerInfo::RemoveCarrier()
+{
+	const Planet *carrierPlanet = GameData::Planets().Find(industry.GetCarrier().name);
+	const System *where = carrierPlanet ? carrierPlanet->GetSystem() : nullptr;
+	if(!where)
+		return;
+	for(const StellarObject &object : where->Objects())
+		if(object.GetPlanet() == carrierPlanet)
+		{
+			ostringstream text;
+			text << "system " << DataWriter::Quote(where->TrueName()) << '\n'
+				<< "\tremove object\n"
+				<< "\t\tsprite planet/expanded/carrier\n"
+				<< "\t\tdistance " << static_cast<int>(object.Distance()) << '\n';
+			ChangeUniverse(text.str(), false);
+			return;
+		}
+}
+
+
+
+// A carrier that has arrived appears once it is safe to add it: not while the
+// player is flying in that system.
+void PlayerInfo::PlaceWaitingCarrier()
+{
+	if(!carrierWaiting)
+		return;
+	const System *where = GameData::Systems().Find(industry.GetCarrier().system);
+	if(!planet && system == where)
+		return;
+	carrierWaiting = false;
+	PlaceCarrier();
+	Messages::Add({"\"" + industry.GetCarrier().name + "\" has arrived in the "
+		+ (where ? where->DisplayName() : industry.GetCarrier().system) + " system.",
+		GameData::MessageCategories().Get("normal")});
 }
 
 
@@ -1993,6 +2300,7 @@ void PlayerInfo::Land(UI &ui)
 	// This can only be done while landed.
 	if(!system || !planet)
 		return;
+	PlaceWaitingCarrier();
 
 	if(!freshlyLoaded)
 	{
@@ -2158,6 +2466,19 @@ bool PlayerInfo::TakeOff(UI &ui, const bool distributeCargo)
 
 	shouldLaunch = false;
 	Audio::Play(Audio::Get("takeoff"), SoundCategory::ENGINE);
+
+	// If the planet moved while the player was on it (a carrier), take off where it is now.
+	if(planet->GetSystem() && planet->GetSystem() != system)
+	{
+		const System *oldSystem = system;
+		for(const shared_ptr<Ship> &ship : ships)
+			if(!ship->IsParked() && ship->GetSystem() == oldSystem)
+			{
+				ship->SetSystem(planet->GetSystem());
+				ship->SetPlanet(planet);
+			}
+		SetSystem(*planet->GetSystem());
+	}
 
 	// Jobs are only available when you are landed.
 	availableJobs.clear();
@@ -4086,6 +4407,7 @@ void PlayerInfo::ApplyChanges()
 		it.first->SetReputation(it.second);
 	reputationChanges.clear();
 	AddChanges(dataChanges);
+	PlaceCarrier();
 	GameData::UpdateSystems();
 	GameData::RecomputeWormholeRequirements();
 	GameData::ReadEconomy(economy);
@@ -4312,6 +4634,14 @@ void PlayerInfo::RegisterDerivedConditions()
 			if(holding.type->TrueName() == name)
 				retVal += holding.count;
 		return retVal; });
+	// Whether the given research project is finished.
+	conditions["research: "].ProvidePrefixed([this](const ConditionEntry &ce) -> int64_t {
+		const Research *project = GameData::ResearchProjects().Find(ce.NameWithoutPrefix());
+		return project && industry.IsResearched(*project); });
+	// Whether the player's carrier is in the given system.
+	conditions["carrier in: "].ProvidePrefixed([this](const ConditionEntry &ce) -> int64_t {
+		const Industry::Carrier &carrier = industry.GetCarrier();
+		return industry.HasCarrier() && !carrier.daysLeft && carrier.system == ce.NameWithoutPrefix(); });
 	// Tons of the given commodity in the player's cargo (see CommodityCount).
 	conditions["commodity: "].ProvidePrefixed([this](const ConditionEntry &ce) -> int64_t {
 		return CommodityCount(ce.NameWithoutPrefix()); });

@@ -51,6 +51,7 @@ private:
 	// Fill the warehouse where the player is landed with special commodities.
 	void StockWarehouse();
 	void UnlockStory();
+	void AddResearch(int points);
 	void Run(size_t index);
 
 

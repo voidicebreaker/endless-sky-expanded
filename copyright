@@ -4113,6 +4113,21 @@ License: CC-BY-SA-4.0
  Made with an AI image generator for Endless Sky: Expanded, using stock Endless
  Sky images as style references.
 
+Files:
+ images/outfit/expanded/shear?lance*
+ images/outfit/expanded/remnant?reactor*
+ images/planet/expanded/carrier*
+Copyright: Becca Tommaso (tommasobecca03@gmail.com)
+License: CC-BY-SA-4.0
+ Placeholder copies of stock images for Endless Sky: Expanded, to be replaced
+ with new art. See docs/expanded/art/README.md.
+
+Files:
+ images/outfit/expanded/relic?ward*
+Copyright: Daeridanii (https://github.com/Daeridanii1)
+License: CC-BY-SA-4.0
+ Placeholder copy of a stock image for Endless Sky: Expanded.
+
 License: GPL-3+
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by

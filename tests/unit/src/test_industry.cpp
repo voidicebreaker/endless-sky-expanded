@@ -25,6 +25,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "../../../source/Blueprint.h"
 #include "../../../source/DataWriter.h"
 #include "../../../source/Facility.h"
+#include "../../../source/Research.h"
 #include "../../../source/Set.h"
 
 #include <cmath>
@@ -90,6 +91,28 @@ const std::string GADGET = R"(blueprint "Gadget"
 	days 2
 )";
 
+const std::string LAB = R"(facility "Lab"
+	input "Electronics" 1
+	storage 20
+	research 10
+)";
+
+const std::string PLATFORM = R"(facility "Platform"
+	defense 50
+	uninhabited
+)";
+
+const std::string SURVEY = R"(research "Survey"
+	cost 25
+	material "Metal" 3
+)";
+
+const std::string COUNTER = R"(research "Counter"
+	cost 10
+	"risk reduction" 40
+	"fold relay"
+)";
+
 // What selling tons on a fresh market pays, with saturation applied.
 int64_t FreshSale(int price, int tons)
 {
@@ -121,6 +144,17 @@ public:
 	std::map<std::pair<std::string, std::string>, int> prices;
 	std::map<std::pair<std::string, std::string>, int> traded;
 	std::map<std::pair<std::string, std::string>, int> jumps;
+	std::map<std::string, double> risks;
+
+	virtual double Risk(const std::string &planet) const override
+	{
+		auto it = risks.find(planet);
+		return it == risks.end() ? 0. : it->second;
+	}
+	virtual int Value(const std::string &commodity) const override
+	{
+		return 100;
+	}
 };
 // #endregion mock data
 
@@ -677,6 +711,149 @@ SCENARIO( "Fabricating from blueprints", "[Industry]" ) {
 				CHECK( loaded.Orders().front().planet == "Station" );
 				CHECK( loaded.Orders().front().daysLeft == 1 );
 			}
+		}
+	}
+}
+SCENARIO( "Researching a project", "[Industry]" ) {
+	Set<Facility> facilities = MakeFacilities();
+	facilities.Get("Lab")->Load(AsDataNode(LAB));
+	Set<Research> projects;
+	projects.Get("Survey")->Load(AsDataNode(SURVEY));
+	projects.Get("Counter")->Load(AsDataNode(COUNTER));
+	const Research &survey = *projects.Get("Survey");
+	const Research &counter = *projects.Get("Counter");
+
+	GIVEN( "a research project definition" ) {
+		THEN( "it is loaded" ) {
+			CHECK( survey.Cost() == 25 );
+			REQUIRE( survey.Materials().size() == 1 );
+			CHECK( survey.Condition() == "research: Survey" );
+			CHECK( counter.RiskReduction() == 40 );
+			CHECK( counter.IsFoldRelay() );
+			CHECK( facilities.Get("Lab")->Research() == 10 );
+		}
+	}
+	GIVEN( "a lab on Earth" ) {
+		Industry industry;
+		industry.Build(*facilities.Get("Lab"), "Earth");
+		industry.Build(*facilities.Get("Depot"), "Earth");
+		Industry::Holding &lab = *industry.Find(*facilities.Get("Lab"), "Earth");
+		WHEN( "a project is started without its materials" ) {
+			THEN( "it cannot start" ) {
+				CHECK_FALSE( industry.StartResearch(survey, "Earth") );
+				CHECK_FALSE( industry.ActiveResearch() );
+			}
+		}
+		WHEN( "a project is started with its materials in the warehouse" ) {
+			industry.Store("Earth", "Metal", 5);
+			REQUIRE( industry.StartResearch(survey, "Earth") );
+			THEN( "the materials are used up" ) {
+				CHECK( industry.Warehouse("Earth").at("Metal") == 2 );
+				CHECK( industry.ActiveResearch() == &survey );
+				CHECK( industry.HasStarted(survey) );
+			}
+			THEN( "the lab makes nothing without its inputs" ) {
+				CHECK( industry.AdvanceDay(1000).research == 0 );
+				CHECK( lab.status == Industry::Status::NO_INPUTS );
+			}
+			THEN( "the project is finished after enough days of research" ) {
+				Industry::Supply(lab, "Electronics", 3);
+				CHECK( industry.AdvanceDay(1000).research == 10 );
+				CHECK( industry.Progress(survey) == 10 );
+				CHECK( !industry.AdvanceDay(1000).finishedResearch );
+				const Industry::DayReport report = industry.AdvanceDay(1000);
+				CHECK( report.finishedResearch == &survey );
+				CHECK( industry.IsResearched(survey) );
+				CHECK_FALSE( industry.ActiveResearch() );
+			}
+			THEN( "switching projects keeps the progress" ) {
+				Industry::Supply(lab, "Electronics", 3);
+				industry.AdvanceDay(1000);
+				REQUIRE( industry.StartResearch(counter, "Earth") );
+				CHECK( industry.Progress(survey) == 10 );
+				REQUIRE( industry.StartResearch(survey, "Earth") );
+				CHECK( industry.Warehouse("Earth").at("Metal") == 2 );
+			}
+			THEN( "progress is saved and loaded" ) {
+				industry.AddResearch(30);
+				industry.Store("Earth", "Metal", 0);
+				REQUIRE( industry.StartResearch(counter, "Earth") );
+				industry.AddResearch(4);
+				DataWriter writer;
+				industry.Save(writer);
+				Industry loaded;
+				loaded.Load(AsDataNode(writer.SaveToString()), facilities, nullptr, &projects);
+				CHECK( loaded.IsResearched(survey) );
+				CHECK( loaded.ActiveResearch() == &counter );
+				CHECK( loaded.Progress(counter) == 4 );
+			}
+		}
+	}
+}
+
+SCENARIO( "Losing output to pirates", "[Industry]" ) {
+	Set<Facility> facilities = MakeFacilities();
+	facilities.Get("Platform")->Load(AsDataNode(PLATFORM));
+	Set<Research> projects;
+	projects.Get("Counter")->Load(AsDataNode(COUNTER));
+	MockWorld world;
+	world.risks["Earth"] = .5;
+
+	GIVEN( "a mining outpost in a dangerous system" ) {
+		Industry industry;
+		industry.Build(*facilities.Get("Mining Outpost"), "Earth");
+		auto stock = [&industry, &facilities]()
+		{
+			return industry.Find(*facilities.Get("Mining Outpost"), "Earth")->Stock("Metal");
+		};
+		THEN( "pirates take their share of each day's output" ) {
+			const Industry::DayReport report = industry.AdvanceDay(1000, &world);
+			CHECK( stock() == 1 );
+			CHECK( report.pirateTons == 1 );
+			CHECK( report.pirateValue == 100 );
+		}
+		WHEN( "a defense platform is built there" ) {
+			industry.Build(*facilities.Get("Platform"), "Earth");
+			THEN( "the risk is cut" ) {
+				CHECK_THAT( industry.PirateRisk("Earth", .5), Catch::Matchers::WithinAbs(.25, 1e-9) );
+				industry.AdvanceDay(1000, &world);
+				industry.AdvanceDay(1000, &world);
+				// Two days at a quarter: half a ton, then another half.
+				CHECK( stock() == 3 );
+			}
+		}
+		WHEN( "research cuts pirate losses" ) {
+			Industry researched;
+			researched.Load(AsDataNode("industry\n\tresearched Counter\n"), facilities, nullptr, &projects);
+			THEN( "the risk is cut everywhere" ) {
+				CHECK_THAT( researched.ResearchRiskMultiplier(), Catch::Matchers::WithinAbs(.6, 1e-9) );
+				CHECK_THAT( researched.PirateRisk("Mars", .5), Catch::Matchers::WithinAbs(.3, 1e-9) );
+				CHECK( researched.HasFoldRelay() );
+			}
+		}
+	}
+}
+
+SCENARIO( "Moving the carrier", "[Industry]" ) {
+	const Set<Facility> facilities = MakeFacilities();
+	GIVEN( "a carrier on its way somewhere" ) {
+		Industry industry;
+		industry.GetCarrier() = {"Ark", "Suhail", 2};
+		THEN( "it arrives after the given number of days" ) {
+			CHECK( industry.HasCarrier() );
+			CHECK_FALSE( industry.AdvanceDay(0).carrierArrived );
+			CHECK( industry.AdvanceDay(0).carrierArrived );
+			CHECK( industry.GetCarrier().daysLeft == 0 );
+			CHECK_FALSE( industry.AdvanceDay(0).carrierArrived );
+		}
+		THEN( "it is saved and loaded" ) {
+			DataWriter writer;
+			industry.Save(writer);
+			Industry loaded;
+			loaded.Load(AsDataNode(writer.SaveToString()), facilities);
+			CHECK( loaded.GetCarrier().name == "Ark" );
+			CHECK( loaded.GetCarrier().system == "Suhail" );
+			CHECK( loaded.GetCarrier().daysLeft == 2 );
 		}
 	}
 }

@@ -29,6 +29,9 @@
 # 	requires "<condition>"                                 (only once the player has this condition)
 # 	fabricator                                             (builds from blueprints; one order per unit)
 # 	outfitter "<outfitter>"                                (adds this outfitter to its planet when built)
+# 	research <points>                                      (research points a day, per unit, while it has its inputs)
+# 	defense <percent>                                      (cuts pirate losses on its planet, per unit)
+# 	carrier                                                (the hull of the player's carrier; fabricated, not built)
 # 	flavor `<status report; <planet> becomes the planet name>`  (any number)
 #
 # Production chains:
@@ -53,6 +56,13 @@
 # 	Alloy Kiln (stations): Metal + Heavy Metals -> Zero-G Alloy
 # 	Lattice Vat (uninhabited worlds): Plastic + Heavy Metals -> Lattice Crystal
 # 	Core Forge (stations, unlocked by the story): Refined Isotopes + Zero-G Alloy -> Fusion Cores
+#
+# Research and the shear (see "research.txt" and "beyond the shear.txt"):
+# 	Research Lab (research worlds, stations): Electronics + Lattice Crystal -> research points
+# 	Fold Refinery (stations, after Fold Theory): Zero-G Alloy + Lattice Crystal + Electronics -> Fold Charges
+# 	Salvage Rig (ruins beyond the shear) -> Relic Fragments
+# 	Shear Harvester (shear worlds beyond the shear) -> Shear Glass
+# 	Defense Platform (stations and outposts): cuts pirate losses
 
 
 # Raw materials.
@@ -365,3 +375,78 @@ facility "Core Forge"
 	requires "expanded: core forge"
 	flavor `The core forge at <planet> sealed another core. The radiation officer has asked for a bigger desk, further away.`
 	flavor `The core forge at <planet> runs warm enough that the crew dries their laundry on the shielding. This is against regulations.`
+
+
+# Research and defense.
+
+facility "Research Lab"
+	description `Clean rooms, a computing core, and a staff of people who are paid to be curious. The lab turns electronics and lattice crystal into research for whichever project you choose, and nothing at all if it runs short.`
+	cost 800000
+	upkeep 500
+	input "Electronics" 2
+	input "Lattice Crystal" 1
+	storage 40
+	research 10
+	attributes research "player station"
+	flavor `The lab on <planet> has a whiteboard that nobody is allowed to erase. Nobody remembers why.`
+	flavor `A researcher on <planet> published a paper. It has been cited once, by the same researcher.`
+	flavor `The lab on <planet> requested a larger coffee budget, with a forty-page justification.`
+
+facility "Defense Platform"
+	description `A weapons platform with a sensor mast and a crew who would rather be somewhere else. Pirates avoid places that shoot back, so each platform cuts what they take from your facilities here.`
+	cost 400000
+	upkeep 250
+	defense 40
+	attributes "player station"
+	uninhabited
+	flavor `The defense platform at <planet> fired a warning shot at a pirate scout. The scout left. So did the platform's coffee mug, which had been on the gun.`
+	flavor `The gunners at <planet> painted a tally on the platform hull. It is a tally of days without anything to shoot at.`
+
+facility "Fold Refinery"
+	description `A cascade of field chambers that packs zero-g alloy and lattice crystal into fold charges: the fuel a fold drive burns to tear across the shear. The process is stable, the engineers say, in the tone of people who have had to say it a lot.`
+	cost 1600000
+	upkeep 900
+	input "Zero-G Alloy" 1
+	input "Lattice Crystal" 1
+	input "Electronics" 2
+	output "Fold Charges" 2
+	storage 80
+	attributes "player station"
+	requires "research: Fold Theory"
+	flavor `The fold refinery at <planet> hummed in a new key this morning. The engineers checked everything twice and decided they liked it.`
+	flavor `A fold charge at <planet> was dropped during loading. Nothing happened. Three people had to sit down anyway.`
+
+
+# The carrier. It is fabricated from a blueprint (see "fabrication.txt"), not built.
+
+facility "Fold Carrier"
+	description `A station with a fold drive in its keel: a kilometer of alloy, most of it hangar and warehouse. It moves between systems on your orders, it can carry station modules like any other station, and it is the only thing that can cross the shear.`
+	upkeep 2500
+	warehouse 3000
+	carrier
+	flavor `The hangar crew on <planet> has started a betting pool on the next fold jump. Nobody will say what they are betting on.`
+	flavor `The quartermaster on <planet> reports that the carrier now has more cats than lifeboats. She would like more lifeboats.`
+
+
+# Beyond the shear.
+
+facility "Salvage Rig"
+	description `Cutting torches, cargo cranes, and a crew who know how to take a dead machine apart without upsetting it. The rig strips the ruins for anything that still works, or might again.`
+	cost 700000
+	upkeep 500
+	output "Relic Fragments" 1
+	storage 40
+	attributes "expanded ruin"
+	flavor `The salvage crew on <planet> found a room full of chairs, all facing a blank wall. They left it alone.`
+	flavor `A salvaged machine on <planet> switched itself on, ran for a minute, and switched itself off again. The crew has asked for hazard pay.`
+	flavor `The salvage rig on <planet> pulled up a panel with writing on it. The writing is very neat, and nobody can read it.`
+
+facility "Shear Harvester"
+	description `The shear has scarred the worlds near it, fusing their surface rock into a dark glass that bends light and, the engineers say, a little of everything else. The harvester cuts it into slabs.`
+	cost 900000
+	upkeep 600
+	output "Shear Glass" 1
+	storage 40
+	attributes "expanded shear"
+	flavor `The harvester crew on <planet> swear that the glass hums when the shear is close. The instruments say nothing. The crew says the instruments are not listening.`
+	flavor `A slab of shear glass on <planet> showed the crew their own reflection a second late. The slab has been put in a crate.`

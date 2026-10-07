@@ -223,6 +223,13 @@ public:
 	// Build a facility, or one more unit of it, on the given planet, adding any
 	// shops it brings with it. Paying for it is up to the caller.
 	void BuildFacility(const Facility &type, const std::string &planet);
+	// The player's carrier: order it to another system (returning why it can't
+	// go, if it can't), and the systems it can go to with the days each takes.
+	std::string OrderCarrier(const System &destination);
+	std::vector<std::pair<const System *, int>> CarrierDestinations() const;
+	static bool IsFoldJump(const System &from, const System &to);
+	// The fraction of each day's output that pirates take on the given planet.
+	double PirateRisk(const std::string &planet) const;
 	// Count or remove tons of a commodity in the pooled cargo and the cargo
 	// holds of the ships in the player's system.
 	int CommodityCount(const std::string &commodity) const;
@@ -492,8 +499,12 @@ private:
 	void DoAccounting();
 	// Run a day of production for the player's facilities.
 	void AdvanceIndustry();
-	void DeliverFabrication(const Blueprint &blueprint, const std::string &planet);
-	void ChangeUniverse(const std::string &text);
+	void DeliverFabrication(const Industry::Order &order);
+	void ChangeUniverse(const std::string &text, bool save = true);
+	bool FoundCarrier(const Facility &hull, const std::string &name, const Planet &station);
+	void PlaceCarrier();
+	void RemoveCarrier();
+	void PlaceWaitingCarrier();
 
 	bool HasClearance() const;
 
@@ -513,6 +524,8 @@ private:
 	const System *system = nullptr;
 	const Planet *planet = nullptr;
 	bool shouldLaunch = false;
+	// The carrier has arrived, but is not in its system yet.
+	bool carrierWaiting = false;
 	bool isCloaking = false;
 	bool isDead = false;
 	bool displayCarrierHelp = false;

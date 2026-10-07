@@ -48,9 +48,12 @@ test "Fabrication - Setup"
 		navigate
 			"travel destination" "Arcturus Station"
 		call "Land"
-		# The rows are: the warehouse, the Orbital Station, the Alloy Kiln, then the Fabrication Bay.
+		# The rows are: the warehouse, the Orbital Station, the Alloy Kiln, the
+		# Defense Platform, then the Fabrication Bay.
 		input
 			key n
+		input
+			key "Down"
 		input
 			key "Down"
 		input

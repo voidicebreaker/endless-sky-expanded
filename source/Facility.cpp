@@ -67,6 +67,12 @@ void Facility::Load(const DataNode &node)
 			isFabricator = true;
 		else if(key == "outfitter" && hasValue)
 			outfitters.push_back(child.Token(1));
+		else if(key == "research" && hasValue)
+			research = max(0, static_cast<int>(child.Value(1)));
+		else if(key == "defense" && hasValue)
+			defense = clamp(static_cast<int>(child.Value(1)), 0, 100);
+		else if(key == "carrier")
+			isCarrier = true;
 		else if(key == "uninhabited")
 			anyUninhabited = true;
 		else if(key == "requires" && hasValue)
@@ -132,6 +138,27 @@ bool Facility::IsFabricator() const
 const vector<string> &Facility::Outfitters() const
 {
 	return outfitters;
+}
+
+
+
+int Facility::Research() const
+{
+	return research;
+}
+
+
+
+int Facility::Defense() const
+{
+	return defense;
+}
+
+
+
+bool Facility::IsCarrier() const
+{
+	return isCarrier;
 }
 
 

@@ -42,6 +42,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "Person.h"
 #include "Phrase.h"
 #include "Planet.h"
+#include "Research.h"
 #include "shader/Shader.h"
 #include "Ship.h"
 #include "StartConditions.h"
@@ -121,6 +122,7 @@ private:
 	Set<Effect> effects;
 	Set<GameEvent> events;
 	Set<Facility> facilities;
+	Set<Research> research;
 	Set<Fleet> fleets;
 	Set<FormationPattern> formations;
 	Set<Galaxy> galaxies;

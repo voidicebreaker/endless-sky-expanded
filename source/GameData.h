@@ -61,6 +61,7 @@ class Planet;
 class PlayerInfo;
 class Point;
 class Politics;
+class Research;
 class Shader;
 class Ship;
 class ShipEvent;
@@ -146,6 +147,7 @@ public:
 	static const Set<News> &SpaceportNews();
 	static const Set<Facility> &Facilities();
 	static const Set<Blueprint> &Blueprints();
+	static const Set<Research> &ResearchProjects();
 	static const Set<Outfit> &Outfits();
 	static const Set<Shop<Outfit>> &Outfitters();
 	static const Set<Person> &Persons();

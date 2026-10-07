@@ -302,6 +302,8 @@ target_sources(EndlessSkyLib PRIVATE
 	Rectangle.h
 	RenderBuffer.cpp
 	RenderBuffer.h
+	Research.cpp
+	Research.h
 	RouteEdge.cpp
 	RouteEdge.h
 	RoutePlan.cpp

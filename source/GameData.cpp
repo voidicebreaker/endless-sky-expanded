@@ -658,6 +658,13 @@ const Set<Blueprint> &GameData::Blueprints()
 
 
 
+const Set<Research> &GameData::ResearchProjects()
+{
+	return objects.research;
+}
+
+
+
 const Set<Outfit> &GameData::Outfits()
 {
 	return objects.outfits;

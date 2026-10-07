@@ -1,0 +1,193 @@
+# Copyright (c) 2026 by Endless Sky Expanded contributors
+#
+# Endless Sky is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later version.
+#
+# Endless Sky is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+
+# The story of the shear. The player's research labs find a region past Suhail
+# that hyperspace does not reach. Dr. Oriel Fenn, a theorist on Asgard who lost
+# her post for saying such a thing could exist, helps the player understand it.
+# Beyond the shear are the ruins of the people who built it.
+#
+# Conditions set here:
+# 	"expanded: met fenn"        met Dr. Fenn
+# 	"expanded: relics studied"  unlocks the Relic Reconstruction project
+# 	"expanded: archive read"    unlocks the Fold Relay project
+# 	"expanded: last light"      unlocks the Remnant Reactor blueprint
+
+
+
+mission "Shear 1"
+	name "A Theorist on Asgard"
+	description "Travel to <destination> and meet Dr. Oriel Fenn, who has seen your survey data."
+	landing
+	source
+		government "Republic" "Free Worlds" "Syndicate" "Neutral" "Independent"
+		not planet "Asgard"
+	destination "Asgard"
+	to offer
+		has "research: Deep Survey Array"
+	on offer
+		conversation
+			`There is a message waiting for you when you land, sent to the address on your research labs' public filings. The sender's name is Dr. Oriel Fenn, and the subject line is "You found it."`
+			`	"Captain <last>, your survey array has been publishing raw data to the open archive, which is a thing most companies forget to turn off. I have been reading it. You have found a place past Suhail where hyperspace stops. Not thins out, not gets dangerous: stops.`
+			`	"Eleven years ago I lost my post at the Deep Sky institute for saying that hyperspace could have edges. I was told, politely and then less politely, that I was wrong. You have just shown that I was not. I would very much like to talk to you. I am on Asgard. I am easy to find, because I am the one in the cheap office."`
+			choice
+				`	(Plan to visit Asgard.)`
+					accept
+				`	(Not right now.)`
+					defer
+	on complete
+		set "expanded: met fenn"
+		payment 30000
+		log "People" "Oriel Fenn" `A hyperspace theorist on Asgard who lost her post for claiming that hyperspace could have edges. She was right.`
+		log `Met Dr. Oriel Fenn on Asgard. She believes the edge my survey array found past Suhail is not natural: it is a wall, and someone built it.`
+		conversation
+			`Dr. Fenn's office is on the forty-first floor of a building that has seen better centuries. It has one window, one chair for visitors, and one wall entirely covered in printouts of your survey data, joined with tape and annotated in green ink.`
+			`	She is younger than you expected, and she talks quickly, as if she has been saving it up. "Look at this." She taps a line of figures. "Natural boundaries in hyperspace should be soft. Gradients. This is a step. It is the same height everywhere you measure it. Nature does not do that." She taps again. "People do that."`
+			choice
+				`	"You think someone built it?"`
+				`	"Why would anyone build a wall in hyperspace?"`
+					goto why
+			`	"I think someone built it, yes. A long time ago, and very well." She sits on the edge of her desk.`
+				goto next
+			label why
+			`	"That," she says, "is the only question worth asking."`
+			label next
+			`	"Your labs can map it properly, now that they know what to look for. Do that, and I think we will see what is on the other side. I cannot pay you. I can tell you that you are the first person in eleven years who has listened to me for more than a minute, and that is worth something." She hands you a data chip. "My notes. The good ones are in green."`
+			`	As you leave, she has already turned back to the wall, and is drawing a new line on it.`
+
+
+
+mission "Shear 2"
+	name "What Fenn Saw"
+	landing
+	invisible
+	source
+		government "Republic" "Free Worlds" "Syndicate" "Neutral" "Independent"
+	to offer
+		has "research: Shear Mapping"
+		has "Shear 1: done"
+	on offer
+		log `My labs finished mapping the shear. There are seven star systems on the other side, and their stations are still warm. Dr. Fenn thinks the people who built the wall are still behind it, or were until recently.`
+		conversation
+			`A message from Dr. Fenn arrives as soon as the shear mapping finishes. It is very short. "Look at your map."`
+			`	Your labs have plotted seven star systems beyond the shear, hanging past Suhail like islands off a coast. There is no hyperspace route to any of them. Your survey array has picked up heat from several: not from their stars, but from things in orbit around them.`
+			`	A second message follows an hour later. "Those are stations, Captain. Stations with their lights on, behind a wall that nobody has crossed in longer than we have had hyperspace. I have spent the hour trying to decide whether that is wonderful or frightening, and I have decided that it is both.`
+			`	"There is no way across. A hyperdrive needs a route, and there is no route. But you could fold space around the wall instead of going through it, if you had something big and steady enough to fold from, and fuel that does not exist yet. Your labs could work on that. I will help. I have nothing else to do, and I have never wanted to do anything more."`
+				decline
+
+
+
+mission "Shear 3"
+	name "Salvage for Fenn"
+	description "Bring 20 tons of relic fragments from the ruins beyond the shear to Dr. Oriel Fenn on <destination>."
+	landing
+	source
+		attributes "player carrier"
+	destination "Asgard"
+	to offer
+		"carrier in: Threshold" > 0
+		has "Shear 1: done"
+	to complete
+		"commodity: Relic Fragments" >= 20
+	on offer
+		event "expanded: shear-runners" 6
+		conversation
+			`The fold jump takes two days, and you spend them aboard your carrier, in the observation lounge, because there is nothing else to do and nobody aboard can sleep. The jump itself, when it comes, is nothing much: a long moment in which the stars seem to forget where they are supposed to be, and then remember.`
+			`	Threshold is a quiet orange star with nothing much around it. Your sensors find a dead station tumbling in the inner system, and a world near the edge of the shear that has been burned to glass. There are no ships, no voices, no beacons. There is nothing on any frequency at all.`
+			`	Dr. Fenn has sent a message to be opened on arrival. "If you are reading this, it worked, and I owe you a drink for the rest of my life. Look at everything. Touch nothing important. Bring me something to study: salvage, anything the builders made. Twenty tons should be enough to start. A rig on one of the ruined worlds can strip it for you, and your carrier can bring it home."`
+			`	Before you close the message, your sensor officer clears her throat. "Captain, small thing. Our fold wake is still there, behind us. It's fading. But anyone watching Suhail would have seen it, and could probably follow it."`
+				accept
+	on visit
+		dialog `Dr. Fenn's office has acquired a second chair and a third filing cabinet. You have not brought enough relic fragments yet. She needs twenty tons, which only a Salvage Rig on a ruined world beyond the shear can provide.`
+	on complete
+		commodity "Relic Fragments" -20
+		payment 150000
+		set "expanded: relics studied"
+		log `Brought salvage from beyond the shear to Dr. Fenn. The builders were careful, patient people who wrote everything down. Their machines can be understood, given time, and rebuilt. Scavengers followed my carrier's fold wake across the shear.`
+		conversation
+			`Dr. Fenn has borrowed a laboratory from the institute that fired her, which she seems to enjoy enormously. She spends a week with the salvage, and calls you in at the end of it.`
+			`	"They were tidy," she says. "That is the first thing. Every part is labeled. Every machine has instructions written on the inside of the casing, in case someone needs to repair it. They expected their things to last a very long time, and they expected someone to be around to look after them." She turns a small, smooth component over in her fingers. "I think they were wrong about the second part."`
+			`	"Your labs can rebuild some of this. Their shields, their optics. It will take research, and more salvage." She sets the component down. "And Captain, you should know: there are pirates beyond the shear now. They followed your wake. They will not be the last."`
+
+
+
+mission "Shear 4"
+	name "The Crown Archive"
+	description "Land on <destination> beyond the shear, and read what the builders left in their archive."
+	landing
+	source
+		government "Republic" "Free Worlds" "Syndicate" "Neutral" "Independent"
+	destination "Crown Archive"
+	to offer
+		has "research: Relic Reconstruction"
+	on offer
+		conversation
+			`A message from Dr. Fenn: "I have been working through the builders' writing with what your labs rebuilt. It is not a language yet, but it is getting close. Half of the labels on the salvage point to the same place: a world in the Hollow Crown system that they called, as near as I can translate it, the place where we keep what we know. If anything out there can tell us why they built the wall, it is that. Will you go?"`
+			choice
+				`	(Agree to go to the Crown Archive.)`
+					accept
+				`	(Not right now.)`
+					defer
+	on complete
+		set "expanded: archive read"
+		payment 100000
+		log `Read the builders' archive in the Hollow Crown system. They built the shear to keep their worlds hidden from something they were afraid of. It worked. Then their fleets went out and could not get back, and the people inside ran out of time, alone.`
+		conversation
+			`The archive is a dome in a quiet valley. Inside, the shelves run on for kilometers, every one of them full of glass plates, every plate covered in the same neat hand you have seen everywhere beyond the shear. Your translation software, built from Dr. Fenn's notes, reads them aloud in a flat voice as you walk.`
+			`	Most of it is ordinary. Harvests, repairs, the names of children. Then, near the center of the dome, the plates change. There are star charts, with something drawn at the edge of them that the software calls "the hunger," and gives up trying to describe further. There are designs for the wall. There are lists of ships, sent out to watch the edge, and dates.`
+			`	The wall went up. The hunger never came. The ships were outside it when it closed, and the plates say, again and again, in many different hands, that they would find a way back.`
+			`	The last plates are very short. Fewer people. Fewer harvests. A note that the machines will keep the stations ready, "for when the ships come home." Then nothing.`
+			`	When you send the recordings to Dr. Fenn, it is a long time before she answers. "They were not hiding from us," she writes at last. "They were hiding from something that never found them. They were safe. They were so safe that nobody could reach them." Another pause. "Their notes describe a way to pass cargo through the wall without opening it. Your labs could build it. I think they would like that, someone finally using their door."`
+
+
+
+mission "Shear 5"
+	name "Last Light"
+	description "Land on <destination>, the last builder station that still works."
+	landing
+	source
+		government "Republic" "Free Worlds" "Syndicate" "Neutral" "Independent"
+	destination "Vesper"
+	to offer
+		has "Shear 4: done"
+	on offer
+		conversation
+			`Dr. Fenn writes again a few days later. "One more thing from the archive. The station at Last Light, Vesper, is still sending a signal. The software has finally translated it. I think you should hear it in person, if you are willing. I will understand if you are not."`
+			choice
+				`	(Go to Last Light.)`
+					accept
+				`	(Not right now.)`
+					defer
+	on complete
+		payment 200000
+		set "expanded: last light"
+		log `Landed on Vesper, the last working station beyond the shear. It has been broadcasting the same welcome home for longer than human civilization has existed.`
+		conversation
+			`Vesper's docking clamps close around your ship as gently as hands. The corridors are warm and lit. There is fresh water in the fountains, and the floors have been swept. Nobody has walked on them in an unimaginably long time.`
+			`	In the control room, the recorded voice is still speaking. Your translation software takes a moment, and then begins to read along: "Welcome home. The way through the wall is open. Your rooms are ready. We have kept everything as you left it. We are so glad you are back. Welcome home. The way through the wall is open..."`
+			`	The station's reactor sits in a shaft below the control room, humming steadily. It has been running, untended, for longer than there have been humans. It could go on running for longer still. There is a switch beside the console, clearly labeled, because the builders labeled everything.`
+			choice
+				`	(Leave the station running.)`
+					goto running
+				`	(Switch the broadcast off.)`
+					goto silent
+			label running
+			action
+				set "expanded: vesper running"
+			`	You leave the switch alone. Somewhere out past the wall there may still be a ship, or what is left of one, listening. It seems unkind to stop telling it that it is welcome.`
+				goto end
+			label silent
+			action
+				set "expanded: vesper silent"
+			`	You flip the switch. The voice stops in the middle of a word, and the control room is very quiet. The lights stay on. The reactor keeps humming. The station simply stops waiting.`
+			label end
+			`	Your engineers spend the rest of the day in the reactor shaft, taking measurements, and leave with enough to build one of their own. As your ship undocks, you send a short message to Dr. Fenn. Her reply comes back within the minute: "Thank you for going. Somebody should have, a long time ago."`

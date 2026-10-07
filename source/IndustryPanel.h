@@ -27,6 +27,7 @@ class Planet;
 class PlayerInfo;
 class Point;
 class Rectangle;
+class Research;
 
 
 
@@ -62,6 +63,8 @@ private:
 	enum class View {
 		PLANET,
 		FABRICATION,
+		RESEARCH,
+		CARRIER,
 		ROUTES,
 		FINANCES,
 		OVERVIEW
@@ -92,6 +95,8 @@ private:
 
 	void DrawPlanetView();
 	void DrawFabrication();
+	void DrawResearch();
+	void DrawCarrier();
 	void DrawWarehouse(double left, double top);
 	void DrawRoutes();
 	void DrawFinances();
@@ -112,6 +117,13 @@ private:
 	// Fabrication: the blueprints the player has unlocked, and ordering one.
 	std::vector<const Blueprint *> Blueprints() const;
 	void Order();
+	void OrderCarrier(const std::string &name);
+	// Research: the projects the player can see, and starting the selected one.
+	std::vector<const Research *> Projects() const;
+	bool CanStart(const Research &project) const;
+	void StartResearch();
+	// Send the carrier to the selected destination.
+	void SendCarrier();
 	// Freight route actions.
 	void NewRoute();
 	void DeleteRoute();
@@ -131,6 +143,8 @@ private:
 	int selectedRow = 0;
 	int selectedRoute = 0;
 	int selectedBlueprint = 0;
+	int selectedProject = 0;
+	int selectedDestination = 0;
 	int scroll = 0;
 	std::string status;
 	// The station type waiting for the player to choose a name.

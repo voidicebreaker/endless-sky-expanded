@@ -37,6 +37,11 @@ STYLE = {
 		' transparent background, no shadow, no text. Semi-realistic painted style, matching'
 		' the style-*.png images (ship thumbnails from the game Endless Sky).'
 	),
+	'station': (
+		'Top-down view of a space station, seen from directly above, on a fully transparent'
+		' background, no shadow, no stars, no text. Detailed, semi-realistic painted style, matching'
+		' the style-*.png images (station sprites from the game Endless Sky).'
+	),
 	'outfit': (
 		'Product shot of a single starship component, seen from slightly above at an angle,'
 		' centered on a fully transparent background, no shadow, no text. Semi-realistic painted'
@@ -50,6 +55,7 @@ SIZE_NOTE = {
 		' turrets are placed to match it, so the new ship should fill the same area.'
 	),
 	'thumbnail': '',
+	'station': '',
 	'outfit': '',
 }
 

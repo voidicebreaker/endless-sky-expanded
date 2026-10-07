@@ -25,12 +25,14 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "text/FontSet.h"
 #include "text/Format.h"
 #include "GameData.h"
+#include "GameEvent.h"
 #include "Industry.h"
 #include "Messages.h"
 #include "Planet.h"
 #include "PlayerInfo.h"
 #include "Point.h"
 #include "Rectangle.h"
+#include "Research.h"
 #include "UI.h"
 
 #include <set>
@@ -71,6 +73,7 @@ DevPanel::DevPanel(PlayerInfo &player)
 		}},
 		{"Stock this warehouse with produced-only goods", [this]() { StockWarehouse(); }},
 		{"Unlock all Expanded story content", [this]() { UnlockStory(); }},
+		{"Add 1,000 research points", [this]() { AddResearch(1000); }},
 		{"Close", [this]() { GetUI().Pop(this); }},
 	};
 }
@@ -101,7 +104,7 @@ void DevPanel::Draw()
 		const Rectangle row = Rectangle::FromCorner(rowCorner, Point(WIDTH, ROW_HEIGHT));
 		if(static_cast<int>(i) == hoverIndex)
 			FillShader::Fill(row, highlight);
-		const string label = to_string(i + 1) + ". " + entries[i].label;
+		const string label = to_string((i + 1) % 10) + ". " + entries[i].label;
 		font.Draw(label, rowCorner + Point(PAD, .5 * (ROW_HEIGHT - font.Height())),
 			static_cast<int>(i) == hoverIndex ? bright : medium);
 		AddZone(row, [this, i]() { Run(i); });
@@ -126,8 +129,10 @@ bool DevPanel::KeyDown(SDL_Keycode key, Uint16 mod, const Command &command, bool
 		GetUI().Pop(this);
 	else if(key == '`' || key == SDLK_F12)
 		return true;
-	else if(key >= '1' && key < static_cast<SDL_Keycode>('1' + entries.size()))
+	else if(key >= '1' && key <= '9')
 		Run(key - '1');
+	else if(key == '0')
+		Run(9);
 	else
 		return false;
 
@@ -196,7 +201,7 @@ void DevPanel::StockWarehouse()
 	int total = 0;
 	for(const Trade::Commodity &commodity : GameData::SpecialCommodities())
 		if(produced.contains(commodity.name))
-			total += industry.Store(planet->TrueName(), commodity.name, 150);
+			total += industry.Store(planet->TrueName(), commodity.name, 150, true);
 	lastResult = "Stored " + Format::MassString(total) + " of produced-only goods.";
 }
 
@@ -208,9 +213,29 @@ void DevPanel::UnlockStory()
 	// facilities and blueprints can be tried out.
 	for(const char *name : {"expanded: survey drill", "expanded: crystal bore", "expanded: isotope separator",
 			"expanded: varga deep bore", "expanded: varga charter", "expanded: core forge",
-			"expanded: blueprint fusion core", "expanded: blueprint warden"})
+			"expanded: blueprint fusion core", "expanded: blueprint warden", "expanded: relics studied",
+			"expanded: archive read", "expanded: last light"})
 		player.Conditions().Set(name, 1);
 	lastResult = "Unlocked every facility and blueprint.";
+}
+
+
+
+void DevPanel::AddResearch(int points)
+{
+	const Research *finished = player.GetIndustry().AddResearch(points);
+	if(!player.GetIndustry().ActiveResearch() && !finished)
+	{
+		lastResult = "Choose a project in the Research view first.";
+		return;
+	}
+	lastResult = "Added " + to_string(points) + " research points.";
+	if(finished)
+	{
+		lastResult += " Finished " + finished->TrueName() + ".";
+		if(!finished->Event().empty())
+			player.AddEvent(*GameData::Events().Get(finished->Event()), player.GetDate());
+	}
 }
 
 
